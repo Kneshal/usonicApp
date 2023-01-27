@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Custom
+help_commands.txt
+.vscode/
 # C extensions
 *.so
 
@@ -26,6 +29,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Custom
+help_commands.txt
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -127,3 +133,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Ignore dynaconf secret files
+.secrets.*

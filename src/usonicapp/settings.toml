@@ -1,0 +1,11 @@
+OPERATOR = "Development"
+BUG_REPORT = true
+DB_NAME = "usonicapp"
+DB_USER = "postgres"
+DB_PASSWORD = "admin"
+DB_HOST = "localhost"
+DB_PORT = 5432
+MODEL = "Волна"
+START_FREQUENCY = 20000
+RANGE = 3000
+STEP = 1.0
