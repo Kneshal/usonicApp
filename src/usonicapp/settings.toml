@@ -1,4 +1,4 @@
-OPERATOR = "Development"
+OPERATOR = "user_1"
 BUG_REPORT = true
 DB_NAME = "usonicapp"
 DB_USER = "postgres"
