@@ -203,10 +203,10 @@
                </sizepolicy>
               </property>
               <property name="inputMask">
-               <string>000.0000.0000</string>
+               <string>000.0000-0000</string>
               </property>
               <property name="text">
-               <string>000.0000.0000</string>
+               <string>000.0000-0000</string>
               </property>
               <property name="maxLength">
                <number>13</number>
