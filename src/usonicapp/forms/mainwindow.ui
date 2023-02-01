@@ -195,7 +195,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit">
+             <widget class="QLineEdit" name="fnumber_lineedit">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -224,10 +224,10 @@
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="model_combobox">
+             <widget class="QComboBox" name="devicemodel_combobox">
               <property name="minimumSize">
                <size>
-                <width>110</width>
+                <width>130</width>
                 <height>0</height>
                </size>
               </property>
@@ -262,22 +262,6 @@
              </widget>
             </item>
             <item>
-             <widget class="QToolButton" name="select_button">
-              <property name="text">
-               <string>...</string>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>20</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="autoRaise">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
              <spacer name="horizontalSpacer_2">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
@@ -302,7 +286,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QSpinBox" name="spinBox">
+             <widget class="QSpinBox" name="freq_spinbox">
               <property name="minimum">
                <number>15000</number>
               </property>
@@ -322,7 +306,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QSpinBox" name="spinBox_2">
+             <widget class="QSpinBox" name="range_spinbox">
               <property name="suffix">
                <string/>
               </property>
@@ -345,7 +329,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QDoubleSpinBox" name="doubleSpinBox">
+             <widget class="QDoubleSpinBox" name="step_spinbox">
               <property name="minimum">
                <double>0.010000000000000</double>
               </property>

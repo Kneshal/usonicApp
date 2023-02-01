@@ -11,10 +11,13 @@ settings = Dynaconf(
             'DB_PASSWORD',
             'DB_HOST',
             'DB_PORT',
-            'MODEL',
             'START_FREQUENCY',
             'RANGE',
             'STEP',
+            'PREVIOUS_FACTORY_NUMBER',
+            'PREVIOUS_DEVICE_MODEL',
+            'DISPLAY_RECORDS',
+            'COM_PORT',
             must_exist=True
         ),
         Validator('DB_NAME', default='Development'),
@@ -27,5 +30,6 @@ settings = Dynaconf(
         Validator('START_FREQUENCY', default=20000, lte=100000, gte=15000),
         Validator('RANGE', default=3000, lte=85000, gte=100),
         Validator('STEP', default=1.0, lte=1, gte=0.01),
+        Validator('DISPLAY_RECORDS', default=100, lte=10000),
     ]
 )
