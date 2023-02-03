@@ -1,15 +1,18 @@
+import struct
 import sys
 from datetime import datetime
+from decimal import Decimal
 
 import constants as cts
+import numpy as np
 import qdarktheme
 from config import settings
 from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import DeviceModel, Record, User
 from PyQt6 import QtGui, uic
-from PyQt6.QtCore import QDate, QModelIndex, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (QApplication, QHeaderView, QMainWindow,
+from PyQt6.QtCore import QDate, QModelIndex, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidgetItem, QTextBrowser, QWidget)
 from serialport import MySerialPort
 from widgets import CellCheckbox, EditToolButton
@@ -214,7 +217,7 @@ class TableWindow(QWidget):
         )
         self.table.setColumnHidden(0, True)
         self.table.verticalHeader().setVisible(False)
-        header = self.table.horizontalHeader()  # ATTENTION
+        header: QHeaderView = self.table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
@@ -226,16 +229,15 @@ class TableWindow(QWidget):
         all_records: list = []
         if search is None:
             all_records = Record.select()
-
             if (filter_settings) and ('user' in filter_settings):
                 user = User.select().where(
                     User.username == filter_settings.get('user')
-                )
+                ).get_or_none()
                 all_records = all_records.where(Record.user == user)
             if (filter_settings) and ('devicemodel' in filter_settings):
                 device_model = DeviceModel.select().where(
                     DeviceModel.title == filter_settings.get('devicemodel')
-                )
+                ).get_or_none()
                 all_records = all_records.where(
                     Record.device_model == device_model
                 )
@@ -245,20 +247,22 @@ class TableWindow(QWidget):
                 all_records = all_records.where(
                     Record.date.between(date_1, date_2)
                 )
-            all_records = all_records.limit(settings.DISPLAY_RECORDS)
+            all_records = all_records.limit(
+                settings.DISPLAY_RECORDS
+            ).order_by(Record.date)
 
-            for record in all_records.order_by(Record.date):
+            for record in all_records:
                 if record.factory_number not in factory_numbers:
                     factory_numbers.append(record.factory_number)
         else:
             search_record: list = Record.select().where(
                 Record.factory_number == search
             )
-            if search_record:
-                all_records = search_record
-                factory_numbers.append(search)
-            else:
+            if not search_record:
                 return
+            all_records = search_record
+            factory_numbers.append(search)
+
         self.records_count.setText(f'Записей - {all_records.count()}')
         color_flag: bool = False
         gray: QtGui.QColor = QtGui.QColor(128, 128, 128)
@@ -281,7 +285,7 @@ class TableWindow(QWidget):
             self.table.insertRow(rowposition)
             row += 1
             # Объединяем ячейки и выводим номер аппарата и модель
-            item = QTableWidgetItem(
+            item: QTableWidgetItem = QTableWidgetItem(
                 f'{records[0].factory_number} - '
                 f'{records[0].device_model.title}'
             )
@@ -294,32 +298,36 @@ class TableWindow(QWidget):
             for record in records:
                 self.table.insertRow(self.table.rowCount())
                 # Скрытая ячейка с id записи
-                item = QTableWidgetItem(str(record.id))
+                item: QTableWidgetItem = QTableWidgetItem(str(record.id))
                 self.table.setItem(row, 0, item)
                 # Ячейка с checkbox
-                checkboxwidget = CellCheckbox(self, str(record.id))
+                checkboxwidget: CellCheckbox = CellCheckbox(
+                    self, str(record.id)
+                )
                 self.table.setCellWidget(row, 1, checkboxwidget)
-                item = QTableWidgetItem()
+                item: QTableWidgetItem = QTableWidgetItem()
                 self.table.setItem(row, 1, item)
                 # Ячейка с датой и временем
-                item = QTableWidgetItem(
+                item: QTableWidgetItem = QTableWidgetItem(
                     record.date.strftime('%m-%d-%Y %H:%M')
                 )
                 item.setFlags(flag_selectable_enabled)
                 self.table.setItem(row, 2, item)
                 # Ячейка с именем пользователя
-                item = QTableWidgetItem(record.user.username)
+                item: QTableWidgetItem = QTableWidgetItem(record.user.username)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row, 3, item)
                 # Ячейка с комментарием
-                item = QTableWidgetItem(record.comment)
+                item: QTableWidgetItem = QTableWidgetItem(record.comment)
                 item.setFlags(flag_selectable_enabled)
                 self.table.setItem(row, 4, item)
                 self.set_color_to_row(row, color)
                 # Ячейка с иконкой изменения
-                item = QTableWidgetItem()
-                edit_button = EditToolButton(self, str(record.id))
+                item: QTableWidgetItem = QTableWidgetItem()
+                edit_button: EditToolButton = EditToolButton(
+                    self, str(record.id)
+                )
                 item.setFlags(flag_selectable_enabled)
                 self.table.setItem(row, 5, item)
                 self.table.setCellWidget(row, 5, edit_button)
@@ -328,14 +336,14 @@ class TableWindow(QWidget):
             color_flag = not color_flag
 
     @pyqtSlot()
-    def edit_record(self, record_id):
+    def edit_record(self, record_id: str):
         """Слот редактирования записи из таблицы."""
         self.edit_record_window.show_window(record_id)
 
     @pyqtSlot(QModelIndex)
-    def table_double_clicked(self, index) -> None:
+    def table_double_clicked(self, index: int) -> None:
         """Слот двойного щелчка мыши по таблице. Меняет статус QCheckbox."""
-        ch_item = self.table.cellWidget(index.row(), 1)
+        ch_item: CellCheckbox = self.table.cellWidget(index.row(), 1)
         if isinstance(ch_item, CellCheckbox):
             if ch_item.checkbox.isChecked():
                 ch_item.checkbox.setChecked(False)
@@ -343,7 +351,7 @@ class TableWindow(QWidget):
                 ch_item.checkbox.setChecked(True)
 
     @pyqtSlot()
-    def checkbox_change_state(self, checkbox, record_id) -> None:
+    def checkbox_change_state(self, checkbox: QCheckBox, record_id: str) -> None:  # noqa
         """Слот изменения статуса QCheckbox в таблицу. Если статус меняется,
         то соответствующим образом меняется список выбранных записей."""
         if checkbox.isChecked():
@@ -391,9 +399,10 @@ class TableWindow(QWidget):
     @pyqtSlot()
     def search_button_clicked(self) -> None:
         """Слот нажатия кнопки поиска записи."""
-        factory_number = self.search_edit.text()
+        factory_number: str = self.search_edit.text()
         self.load_data(
-            self.filter_window.get_filter_settings(), factory_number
+            self.filter_window.get_filter_settings(),
+            factory_number,
         )
 
     @pyqtSlot()
@@ -407,19 +416,19 @@ class TableWindow(QWidget):
 
 class SettingsWindow(QWidget):
     """Окно настроек программы."""
-    change_settings_signal = pyqtSignal()
+    change_settings_signal: pyqtSignal = pyqtSignal()
 
-    def __init__(self, terminal, serial, *args, **kwargs) -> None:
+    def __init__(self, terminal: QTextBrowser, serial: MySerialPort, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
         uic.loadUi('forms/settings.ui', self)
         self.setWindowIcon(QtGui.QIcon('icons/logo_settings.png'))
         self.setWindowTitle('Настройки')
         self.terminal: QTextBrowser = terminal
-        self.serial = serial
-        users = [user.username for user in User.select()]
+        self.serial: MySerialPort = serial
+        users: list = [user.username for user in User.select()]
         self.combobox_user.addItems(users)
-        user = settings.OPERATOR
-        index = self.combobox_user.findText(user)
+        user: str = settings.OPERATOR
+        index: int = self.combobox_user.findText(user)
         self.combobox_user.setCurrentIndex(index)
         self.disp_records_spinbox.setValue(settings.DISPLAY_RECORDS)
         self.lineedit_dbname.setText(settings.DB_NAME)
@@ -428,9 +437,9 @@ class SettingsWindow(QWidget):
         self.lineedit_dbhost.setText(settings.DB_HOST)
         self.spinbox_port.setValue(settings.DB_PORT)
         self.checkbox_bugreport.setChecked(settings.BUG_REPORT)
-        serial_ports = self.serial.get_serial_ports_list()
+        serial_ports: list = self.serial.get_serial_ports_list()
         self.combobox_serialport.addItems(serial_ports)
-        index = self.combobox_serialport.findText(settings.COM_PORT)
+        index: int = self.combobox_serialport.findText(settings.COM_PORT)
         self.combobox_serialport.setCurrentIndex(index)
         self.button_save.clicked.connect(self.save_button_clicked)
 
@@ -438,15 +447,15 @@ class SettingsWindow(QWidget):
     def save_button_clicked(self) -> None:
         """Слот нажатия кнопки сохранения настроек. Сохраняем данные
         в объект dynaconf и файл."""
-        settings.OPERATOR = self.combobox_user.currentText()
-        settings.DISPLAY_RECORDS = self.disp_records_spinbox.value()
-        settings.DB_NAME = self.lineedit_dbname.text()
-        settings.DB_USER = self.lineedit_dbuser.text()
-        settings.DB_PASSWORD = self.lineedit_dbpassword.text()
-        settings.DB_HOST = self.lineedit_dbhost.text()
-        settings.DB_PORT = self.spinbox_port.value()
-        settings.BUG_REPORT = self.checkbox_bugreport.isChecked()
-        settings.COM_PORT = self.combobox_serialport.currentText()
+        settings.OPERATOR: str = self.combobox_user.currentText()
+        settings.DISPLAY_RECORDS: int = self.disp_records_spinbox.value()
+        settings.DB_NAME: str = self.lineedit_dbname.text()
+        settings.DB_USER: str = self.lineedit_dbuser.text()
+        settings.DB_PASSWORD: str = self.lineedit_dbpassword.text()
+        settings.DB_HOST: str = self.lineedit_dbhost.text()
+        settings.DB_PORT: int = self.spinbox_port.value()
+        settings.BUG_REPORT: bool = self.checkbox_bugreport.isChecked()
+        settings.COM_PORT: str = self.combobox_serialport.currentText()
         data: dict = settings.as_dict()
         loaders.write('settings.toml', DynaBox(data).to_dict())
         terminal_msg(self.terminal, 'Настройки программы сохранены')
@@ -469,8 +478,7 @@ class MainWindow(QMainWindow):
         self.table_button.setIcon(QtGui.QIcon('icons/table.png'))
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
 
-        self.init_serial_port()
-        # self.toggle_serial_interface(False)
+        self.init_serial_interface()
 
         self.data_transfer: bool = False
         self.settings_window: SettingsWindow = SettingsWindow(
@@ -481,14 +489,30 @@ class MainWindow(QMainWindow):
 
         self.init_signals()
         self.fill_widgets()
+        self.update_freq_values()
+        self.init_timers()
 
-    def init_serial_port(self) -> None:
+    def init_timers(self) -> None:
+        """Настраиваем таймеры."""
+        self.serial_check_timer = QTimer()
+        self.serial_check_timer.timeout.connect(
+            lambda: self.serial.check_serial_port(settings.COM_PORT)
+        )
+        self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
+
+        self.data_receive_timer = QTimer()
+        self.data_receive_timer.timeout.connect(
+            self.close_data_transfer
+        )
+
+    def init_serial_interface(self) -> None:
         """Настраиваем COM-порт, проверяем доступность последнего
         сохраненного порта."""
-        self.serial = MySerialPort()
-        self.serial.signal_serial_port.connect(
+        self.serial = MySerialPort(self.terminal, self.status_label)
+        self.serial.signal_port_checked.connect(
             self.toggle_serial_interface
         )
+        self.serial.signal_data_received.connect(self.receive_data)
         self.serial.check_serial_port(settings.COM_PORT)
 
     def init_signals(self) -> None:
@@ -513,6 +537,90 @@ class MainWindow(QMainWindow):
             settings.PREVIOUS_DEVICE_MODEL
         )
 
+    def update_freq_values(self) -> None:
+        """Обновляем данные по частоте."""
+        self.freq_start = self.freq_spinbox.value()
+        self.freq_stop = self.freq_start + self.range_spinbox.value()
+        self.step = round(Decimal(self.step_spinbox.value()), 2)
+        self.freq_list = np.arange(
+            self.freq_start, self.freq_stop, self.step
+        ).tolist()
+        self.freq_stop = self.freq_list[-1]
+        self.current_freq = self.freq_start
+        self.progressbar.setMinimum(int(self.freq_start * 100))
+        self.progressbar.setMaximum(int(self.freq_stop * 100))
+
+    def toggle_serial_interface(self, status=False) -> None:
+        """Меняем состояние интерфейса передачи данных."""
+        if status is False:
+            self.startstop_button.setIcon(QtGui.QIcon('icons/start_disabled'))
+            self.data_transfer = False
+            self.serial.serial.close()
+        else:
+            self.startstop_button.setIcon(QtGui.QIcon('icons/start'))
+        self.startstop_button.setEnabled(status)
+        self.fnumber_lineedit.setEnabled(status)
+        self.devicemodel_combobox.setEnabled(status)
+        self.freq_spinbox.setEnabled(status)
+        self.range_spinbox.setEnabled(status)
+        self.step_spinbox.setEnabled(status)
+
+    def open_data_transfer(self) -> None:
+        """Открываем порт, останавливаем проверку COM-порта,
+        меняем иконку кнопки, обновляем текущие частоты."""
+        self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
+        self.serial_check_timer.stop()
+        self.update_freq_values()
+        self.serial.open(settings.COM_PORT)
+        print('Open data transfer')
+
+    def close_data_transfer(self) -> None:
+        """Закрываем порт, включаем проверку COM-порта,
+        меняем иконку кнопки."""
+        self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
+        self.serial.serial.close()
+        self.data_transfer = False
+        self.data_receive_timer.stop()
+        print('Close data transfer')
+        self.serial.check_serial_port(settings.COM_PORT)
+        self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
+
+    def send_data(self, received_data=None) -> None:
+        """Отправка данных на COM-порт."""
+        print('send: ', self.freq_list[0])
+        self.current_freq = self.freq_list[0]
+        self.freq_list.pop(0)
+        self.serial.serial.write(
+            cts.DATA + struct.pack('>f', self.current_freq)
+        )
+        self.data_receive_timer.start(cts.TIMER_DATA_RECEIVE_VALUE)
+
+    def receive_data(self, data) -> None:
+        """Получение данных с COM-порта."""
+        if not self.data_transfer:
+            print('Abort: ', data)
+            return
+        data['freq'] = self.current_freq  # добавляем данные по частоте
+        print('receive: ', data)
+        self.data_receive_timer.stop()
+        if not self.freq_list:
+            self.close_data_transfer()
+            return
+        self.send_data()
+        self.progressbar.setValue(int(self.current_freq * 100))
+
+    @pyqtSlot()
+    def startstop_button_clicked(self) -> None:
+        """Слот нажатия кнопки пуска/остановки приема данных."""
+        self.data_transfer = not self.data_transfer
+        if self.data_transfer is True:
+            print('Start button is clicked!')
+            self.open_data_transfer()
+            self.send_data()
+            return
+        print('Stop button is clicked!')
+        self.close_data_transfer()
+
     @pyqtSlot()
     def search_model_for_fnumber(self) -> None:
         """Слот для подбора модели аппарата из БД под заданный
@@ -535,33 +643,6 @@ class MainWindow(QMainWindow):
             return
         self.settings_window.show()
 
-    def toggle_serial_interface(self, status=False) -> None:
-        """Меняем состояние интерфейса передачи данных."""
-        if status is False:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/recycling'))
-            self.serial.close()
-        else:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/start'))
-        self.fnumber_lineedit.setEnabled(status)
-        self.devicemodel_combobox.setEnabled(status)
-        self.freq_spinbox.setEnabled(status)
-        self.range_spinbox.setEnabled(status)
-        self.step_spinbox.setEnabled(status)
-
-    @pyqtSlot()
-    def startstop_button_clicked(self) -> None:
-        """Слот нажатия кнопки пуска/остановки приема данных."""
-        self.data_transfer = not self.data_transfer
-        if self.data_transfer is True:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
-            print('Start button is clicked!')
-
-            # self.serial.check_serial_port(settings.COM_PORT)
-            return
-        self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
-        print('Stop button is clicked!')
-        self.serial.close()
-
     @pyqtSlot()
     def compare_button_clicked(self) -> None:
         """Слот нажатия кнопки сравнения данных."""
@@ -573,7 +654,6 @@ class MainWindow(QMainWindow):
         if self.table_window.isVisible():
             self.table_window.hide()
             return
-
         self.table_window.filter_window.apply_filter_signal.emit(
             self.table_window.filter_window.get_filter_settings()
         )
@@ -591,7 +671,6 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     """Основная программа - создаем основные объекты и запускаем приложение."""
     app = QApplication(sys.argv)
-
     qdarktheme.setup_theme()
     mainwindow = MainWindow()
     mainwindow.show()

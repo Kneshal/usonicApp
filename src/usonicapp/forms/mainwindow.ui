@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>526</width>
-    <height>508</height>
+    <width>497</width>
+    <height>458</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -311,13 +311,16 @@
                <string/>
               </property>
               <property name="minimum">
-               <number>100</number>
+               <number>50</number>
               </property>
               <property name="maximum">
                <number>100000</number>
               </property>
               <property name="singleStep">
                <number>100</number>
+              </property>
+              <property name="value">
+               <number>50</number>
               </property>
              </widget>
             </item>
@@ -338,6 +341,9 @@
               </property>
               <property name="singleStep">
                <double>0.010000000000000</double>
+              </property>
+              <property name="value">
+               <double>0.200000000000000</double>
               </property>
              </widget>
             </item>
@@ -361,7 +367,7 @@
        </layout>
       </item>
       <item>
-       <widget class="QProgressBar" name="progressBar">
+       <widget class="QProgressBar" name="progressbar">
         <property name="value">
          <number>0</number>
         </property>
@@ -408,6 +414,16 @@
           <width>16777215</width>
           <height>100</height>
          </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="status_label">
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
