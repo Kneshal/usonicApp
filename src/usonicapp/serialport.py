@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import constants as cts
 from PyQt6.QtCore import QIODeviceBase, QObject, QTimer, pyqtSignal
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtSerialPort import QSerialPort, QSerialPortInfo
 
 
@@ -10,16 +11,17 @@ class MySerialPort(QObject):
     signal_data_received = pyqtSignal(dict)
 
     """Класс для работы с COM портом в отдельном потоке."""
-    def __init__(self, terminal, status_label) -> None:
+    def __init__(self, terminal, comport_label) -> None:
         super().__init__()
         self.terminal = terminal
-        self.status_label = status_label
+        self.comport_label = comport_label
+        self.connect_pixmap = QPixmap('icons/connect.png')
+        self.disconnect_pixmap = QPixmap('icons/disconnect.png')
         self.serial = QSerialPort()
         self.serial.setBaudRate(115200)
         self.serial.readyRead.connect(self.read_data)
         self.serial_port = None
         self.factory_number = None
-        self.status = False
         self.timer = QTimer()
         self.timer.timeout.connect(self.no_response)
 
@@ -36,10 +38,9 @@ class MySerialPort(QObject):
 
     def check_serial_port(self, serial_port) -> None:
         """Запрос проверки связи для COM порта."""
-        self.status = False
+        # print('Start serial port check...')
         self.serial.close()
         self.open(serial_port)
-        # print('Start serial port check...')
         self.serial.write(cts.CONNECTION_CHECK)
         self.timer.start(cts.TIMER_SINGLE_CHECK_VALUE)
 
@@ -70,13 +71,9 @@ class MySerialPort(QObject):
                         data[:1],
                         byteorder='little',
                     )
-                    self.status = True
-                    self.timer.stop()
-                    self.status_label.setText(
-                        f'Прибор подключен через порт - {self.serial_port}, '
-                        f'серийный номер - {self.factory_number}'
-                    )
+                    self.comport_label.setPixmap(self.connect_pixmap)
                     # print('Serial port checked successfully')
+                    self.timer.stop()
                     self.signal_port_checked.emit(True)
                 elif command == cts.DATA:
                     received_data = {
@@ -97,7 +94,5 @@ class MySerialPort(QObject):
         """COM порт не отвечает."""
         # print('No response from COM-port')
         self.timer.stop()
-        self.status_label.setText(
-            'COM порт не подключен или не прошел проверку'
-        )
+        self.comport_label.setPixmap(self.disconnect_pixmap)
         self.signal_port_checked.emit(False)

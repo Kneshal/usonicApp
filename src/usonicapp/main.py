@@ -7,9 +7,11 @@ import constants as cts
 import numpy as np
 import qdarktheme
 from config import settings
+from database import DataBase
 from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import DeviceModel, Record, User
+from peewee import InterfaceError, OperationalError
 from PyQt6 import QtGui, uic
 from PyQt6.QtCore import QDate, QModelIndex, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
@@ -100,7 +102,7 @@ class FilterWindow(QWidget):
     """Окно фильтрация таблицы БД."""
     apply_filter_signal: pyqtSignal = pyqtSignal(dict)
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
         uic.loadUi('forms/filter.ui', self)
         self.setWindowIcon(QtGui.QIcon('icons/logo_filter.png'))
@@ -121,10 +123,11 @@ class FilterWindow(QWidget):
 
     def fill_widgets(self) -> None:
         """Заполняем виджеты данными."""
-        users: list = [user.username for user in User.select()]
-        device_models: list = [model.title for model in DeviceModel.select()]
-        self.user_combobox.addItems(users)
-        self.devicemodel_combobox.addItems(device_models)
+        # if users:
+        #     self.user_combobox.addItems(users)
+        # else:
+        #     self.user_combobox.addItem(settings.OPERATOR)
+        # self.devicemodel_combobox.addItems(device_models)
         current_date: QDate = QDate.currentDate()
         self.dateedit_1.setDate(current_date)
         self.dateedit_2.setDate(current_date)
@@ -160,7 +163,7 @@ class FilterWindow(QWidget):
 
 class TableWindow(QWidget):
     """Таблица базы данных программы."""
-    def __init__(self, terminal: QTextBrowser, *args, **kwargs) -> None:
+    def __init__(self, terminal: QTextBrowser, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
         uic.loadUi('forms/table.ui', self)
         self.setWindowIcon(QtGui.QIcon('icons/logo_table.png'))
@@ -418,18 +421,26 @@ class SettingsWindow(QWidget):
     """Окно настроек программы."""
     change_settings_signal: pyqtSignal = pyqtSignal()
 
-    def __init__(self, terminal: QTextBrowser, serial: MySerialPort, *args, **kwargs) -> None:  # noqa
+    def __init__(self, terminal: QTextBrowser, serial: MySerialPort, db: DataBase, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
         uic.loadUi('forms/settings.ui', self)
         self.setWindowIcon(QtGui.QIcon('icons/logo_settings.png'))
         self.setWindowTitle('Настройки')
         self.terminal: QTextBrowser = terminal
         self.serial: MySerialPort = serial
-        users: list = [user.username for user in User.select()]
+        self.db = db
+
+    def update(self) -> None:
+        """Обновляем данные виджетов окна настроек."""
+        users = self.db.get_users()
+        self.combobox_user.clear()
         self.combobox_user.addItems(users)
-        user: str = settings.OPERATOR
-        index: int = self.combobox_user.findText(user)
-        self.combobox_user.setCurrentIndex(index)
+        index: int = self.combobox_user.findText(settings.OPERATOR)
+        if index == -1:
+            self.combobox_user.insertItem(0, settings.OPERATOR)
+            self.combobox_user.setCurrentIndex(0)
+        else:
+            self.combobox_user.setCurrentIndex(index)
         self.disp_records_spinbox.setValue(settings.DISPLAY_RECORDS)
         self.lineedit_dbname.setText(settings.DB_NAME)
         self.lineedit_dbuser.setText(settings.DB_USER)
@@ -438,6 +449,7 @@ class SettingsWindow(QWidget):
         self.spinbox_port.setValue(settings.DB_PORT)
         self.checkbox_bugreport.setChecked(settings.BUG_REPORT)
         serial_ports: list = self.serial.get_serial_ports_list()
+        self.combobox_serialport.clear()
         self.combobox_serialport.addItems(serial_ports)
         index: int = self.combobox_serialport.findText(settings.COM_PORT)
         self.combobox_serialport.setCurrentIndex(index)
@@ -459,7 +471,6 @@ class SettingsWindow(QWidget):
         data: dict = settings.as_dict()
         loaders.write('settings.toml', DynaBox(data).to_dict())
         terminal_msg(self.terminal, 'Настройки программы сохранены')
-        self.serial.check_serial_port(settings.COM_PORT)
         self.change_settings_signal.emit()
         self.hide()
 
@@ -478,19 +489,34 @@ class MainWindow(QMainWindow):
         self.table_button.setIcon(QtGui.QIcon('icons/table.png'))
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
 
-        self.init_serial_interface()
-
+        self.online_pixmap = QtGui.QPixmap('icons/online.png')
+        self.offline_pixmap = QtGui.QPixmap('icons/offline.png')
+        self.attempts_number = 0
         self.data_transfer: bool = False
-        self.settings_window: SettingsWindow = SettingsWindow(
-            self.terminal,
-            self.serial,
-        )
-        self.table_window: TableWindow = TableWindow(self.terminal)
 
+        self.init_database()
+        self.init_serial_interface()
+        self.init_windows()
         self.init_signals()
         self.fill_widgets()
         self.update_freq_values()
         self.init_timers()
+
+    def init_database(self) -> None:
+        """Инициализация баз данных."""
+        self.db = DataBase()
+        self.db.update_sqlite()
+
+    def init_windows(self) -> None:
+        """Инициализация дополнительных окон."""
+        self.settings_window: SettingsWindow = SettingsWindow(
+            self.terminal,
+            self.serial,
+            self.db,
+        )
+        self.table_window: TableWindow = TableWindow(
+            self.terminal,
+        )
 
     def init_timers(self) -> None:
         """Настраиваем таймеры."""
@@ -501,14 +527,17 @@ class MainWindow(QMainWindow):
         self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
 
         self.data_receive_timer = QTimer()
-        self.data_receive_timer.timeout.connect(
-            self.close_data_transfer
-        )
+        self.data_receive_timer.timeout.connect(self.reconnection)
+
+        self.db_check_timer = QTimer()
+        self.db_check_timer.timeout.connect(self.check_db_status)
+        self.check_db_status()
+        self.db_check_timer.start(cts.TIMER_DB_CHECK)
 
     def init_serial_interface(self) -> None:
         """Настраиваем COM-порт, проверяем доступность последнего
         сохраненного порта."""
-        self.serial = MySerialPort(self.terminal, self.status_label)
+        self.serial = MySerialPort(self.terminal, self.comport_label)
         self.serial.signal_port_checked.connect(
             self.toggle_serial_interface
         )
@@ -538,7 +567,7 @@ class MainWindow(QMainWindow):
         )
 
     def update_freq_values(self) -> None:
-        """Обновляем данные по частоте."""
+        """Обновляем локальные данные по частотам."""
         self.freq_start = self.freq_spinbox.value()
         self.freq_stop = self.freq_start + self.range_spinbox.value()
         self.step = round(Decimal(self.step_spinbox.value()), 2)
@@ -564,15 +593,23 @@ class MainWindow(QMainWindow):
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
         self.step_spinbox.setEnabled(status)
+        self.progressbar.setEnabled(status)
 
     def open_data_transfer(self) -> None:
         """Открываем порт, останавливаем проверку COM-порта,
         меняем иконку кнопки, обновляем текущие частоты."""
+        # print('Open data transfer')
         self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
         self.serial_check_timer.stop()
         self.update_freq_values()
         self.serial.open(settings.COM_PORT)
-        print('Open data transfer')
+        freq_start = round(Decimal(self.freq_start), 2)
+        freq_stop = round(Decimal(self.freq_stop), 2)
+        terminal_msg(
+            self.terminal,
+            f'Передача данных в диапазоне {freq_start} - '
+            f'{freq_stop} с шагом {self.step}'
+        )
 
     def close_data_transfer(self) -> None:
         """Закрываем порт, включаем проверку COM-порта,
@@ -581,15 +618,32 @@ class MainWindow(QMainWindow):
         self.serial.serial.close()
         self.data_transfer = False
         self.data_receive_timer.stop()
-        print('Close data transfer')
-        self.serial.check_serial_port(settings.COM_PORT)
+        terminal_msg(self.terminal, 'Передача данных завершена')
+        # print('Close data transfer')
         self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
 
-    def send_data(self, received_data=None) -> None:
+    def reconnection(self) -> None:
+        """Попытка повторной отправки данных, если COM-порт не
+        отвечает."""
+        if self.attempts_number < cts.ATTEMPTS_MAXIMUM:
+            terminal_msg(
+                self.terminal,
+                'Устройство не отвечает, попытка переподключения '
+                f'- {self.attempts_number + 1}.'
+            )
+            # print(f'Reconnection {self.attempts_number}')
+            self.attempts_number += 1
+            self.send_data(False)
+        else:
+            self.attempts_number = 0
+            self.close_data_transfer()
+
+    def send_data(self, modify: bool = True) -> None:
         """Отправка данных на COM-порт."""
-        print('send: ', self.freq_list[0])
-        self.current_freq = self.freq_list[0]
-        self.freq_list.pop(0)
+        # print('send: ', self.freq_list[0])
+        if modify is True:
+            self.current_freq = self.freq_list[0]
+            self.freq_list.pop(0)
         self.serial.serial.write(
             cts.DATA + struct.pack('>f', self.current_freq)
         )
@@ -598,16 +652,25 @@ class MainWindow(QMainWindow):
     def receive_data(self, data) -> None:
         """Получение данных с COM-порта."""
         if not self.data_transfer:
-            print('Abort: ', data)
+            # print('Abort: ', data)
             return
         data['freq'] = self.current_freq  # добавляем данные по частоте
-        print('receive: ', data)
+        # print('receive: ', data)
+        self.attempts_number = 0
         self.data_receive_timer.stop()
         if not self.freq_list:
             self.close_data_transfer()
             return
         self.send_data()
         self.progressbar.setValue(int(self.current_freq * 100))
+
+    @pyqtSlot()
+    def check_db_status(self) -> None:
+        """Изменение иконки доступности БД."""
+        if self.db.check_pg_db():
+            self.database_label.setPixmap(self.online_pixmap)
+            return
+        self.database_label.setPixmap(self.offline_pixmap)
 
     @pyqtSlot()
     def startstop_button_clicked(self) -> None:
@@ -625,15 +688,18 @@ class MainWindow(QMainWindow):
     def search_model_for_fnumber(self) -> None:
         """Слот для подбора модели аппарата из БД под заданный
         заводской номер."""
-        factory_number = self.fnumber_lineedit.text()
-        record = Record.select().where(
-            Record.factory_number == factory_number
-        ).get_or_none()
-        if record is None:
-            self.devicemodel_combobox.setCurrentText('')
-            return
-        device_model = record.device_model.title
-        self.devicemodel_combobox.setCurrentText(device_model)
+        try:
+            factory_number = self.fnumber_lineedit.text()
+            record = Record.select().where(
+                Record.factory_number == factory_number
+            ).get_or_none()
+            if record is None:
+                self.devicemodel_combobox.setCurrentText('')
+                return
+            device_model = record.device_model.title
+            self.devicemodel_combobox.setCurrentText(device_model)
+        except (OperationalError, InterfaceError):
+            pass
 
     @pyqtSlot()
     def settings_button_clicked(self) -> None:
@@ -641,6 +707,7 @@ class MainWindow(QMainWindow):
         if self.settings_window.isVisible():
             self.settings_window.hide()
             return
+        self.settings_window.update()
         self.settings_window.show()
 
     @pyqtSlot()
@@ -675,3 +742,25 @@ if __name__ == '__main__':
     mainwindow = MainWindow()
     mainwindow.show()
     app.exec()
+
+    '''
+    def get_users(self) -> list:
+        """Попытка получить список пользователей из базы данных."""
+        users: list = []
+        try:
+            users: list = [user.username for user in User.select()]
+        except OperationalError:
+            pass
+        return users
+
+    def get_device_models(self) -> list:
+        """Попытка получить список моделей аппаратов из базы данных."""
+        device_models: list = []
+        try:
+            device_models: list = [
+                model.title for model in DeviceModel.select()
+            ]
+        except OperationalError:
+            pass
+        return device_models
+    '''

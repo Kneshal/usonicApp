@@ -6,6 +6,9 @@ __pycache__/
 # Custom
 help_commands.txt
 .vscode/
+temp.py
+usonicApp.db
+
 # C extensions
 *.so
 

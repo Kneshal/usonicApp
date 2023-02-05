@@ -14,5 +14,20 @@ COMMANDS = {
 }
 
 TIMER_CHECK_VALUE = 1000
-TIMER_SINGLE_CHECK_VALUE = 200
-TIMER_DATA_RECEIVE_VALUE = 3000
+TIMER_SINGLE_CHECK_VALUE = 300
+TIMER_DATA_RECEIVE_VALUE = 1000
+ATTEMPTS_MAXIMUM = 2
+TIMER_DB_CHECK = 5000
+
+USERS = (
+    'Сливин А.Н.',
+    'Барсуков Р.В.',
+    'Абраменко Д.С.',
+    'Генне Д.В.',
+    'Абрамов А.Д.',
+)
+DEVICE_MODELS = (
+    'Волна',
+    'Сапфир',
+    'Гиминей',
+)

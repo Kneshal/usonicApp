@@ -1,21 +1,13 @@
 from datetime import datetime
 
-from config import settings
 from peewee import (CharField, DateTimeField, DecimalField, ForeignKeyField,
-                    Model, PostgresqlDatabase, TextField)
-
-pg_db = PostgresqlDatabase(
-    settings.DB_NAME,
-    host=settings.DB_HOST,
-    user=settings.DB_USER,
-    password=settings.DB_PASSWORD,
-    port=settings.DB_PORT,
-)
+                    Model, TextField)
+from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 
 
 class BaseModel(Model):
     class Meta:
-        database = pg_db
+        model_metadata_class = ThreadSafeDatabaseMetadata
 
 
 class User(BaseModel):
