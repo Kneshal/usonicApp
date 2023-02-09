@@ -1,4 +1,4 @@
-OPERATOR = "user_1"
+OPERATOR = "user_03"
 BUG_REPORT = true
 DB_NAME = "usonicapp"
 DB_USER = "postgres"
@@ -12,4 +12,4 @@ PREVIOUS_FACTORY_NUMBER = "002.2023.0002"
 PREVIOUS_DEVICE_MODEL = "Сапфир"
 DISPLAY_RECORDS = 100
 MODEL = "Волна-П"
-COM_PORT = "COM5"
+COM_PORT = "COM3"

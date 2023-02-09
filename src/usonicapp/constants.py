@@ -31,3 +31,9 @@ DEVICE_MODELS = (
     'Сапфир',
     'Гиминей',
 )
+
+PG_TABLE = 'pg_table'
+SQLITE_TABLE = 'sqlite_table'
+
+INDEX_I = 1
+INDEX_U = 1

@@ -100,7 +100,7 @@
         <string>000.0000-0000</string>
        </property>
        <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
@@ -137,7 +137,7 @@
         </size>
        </property>
        <property name="editable">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
       </widget>
      </item>

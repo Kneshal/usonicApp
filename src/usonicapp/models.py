@@ -1,13 +1,40 @@
 from datetime import datetime
 
-from peewee import (CharField, DateTimeField, DecimalField, ForeignKeyField,
-                    Model, TextField)
+from peewee import (BooleanField, CharField, DateTimeField, DecimalField,
+                    ForeignKeyField, Model, TextField)
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
+
+
+def generate_factory_number():
+    """Генерация нового заводского номера."""
+    obj, created = FactoryNumber.get_or_create()
+    if not created:
+        number = obj.number
+        prefix = number[:3]
+        value = int(number[3:]) + 1
+        result = prefix + str(value)
+        obj.number = result
+        obj.save()
+    return obj.number
 
 
 class BaseModel(Model):
     class Meta:
         model_metadata_class = ThreadSafeDatabaseMetadata
+
+
+class FactoryNumber(BaseModel):
+    """Модель заводского номера."""
+    number = CharField(
+        verbose_name='Заводской номер',
+        help_text='Укажите заводской номер',
+        max_length=13,
+        default='TMP1',
+        unique=True,
+    )
+
+    def __str__(self):
+        return self.number
 
 
 class User(BaseModel):
@@ -65,6 +92,11 @@ class Record(BaseModel):
         verbose_name='Заводской номер',
         help_text='Укажите заводской номер',
     )
+    temporary = BooleanField(
+        verbose_name='Тип записи',
+        help_text='Укажите тип записи',
+        default=False,
+    )
     # Добавить расчетные параметры
     # class Meta:
     #     constraints = [SQL('UNIQUE (device_model, factory_number)')]
@@ -81,7 +113,8 @@ class Point(BaseModel):
         Record,
         verbose_name='Запись об измерении',
         help_text='Укажите запись об измерении',
-        backref='points'
+        backref='points',
+        on_delete='CASCADE',
     )
     freq = DecimalField(
         verbose_name='Частота',

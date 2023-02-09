@@ -34,7 +34,7 @@
    <item>
     <widget class="QComboBox" name="devicemodel_combobox">
      <property name="editable">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
     </widget>
    </item>
