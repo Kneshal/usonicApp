@@ -197,7 +197,7 @@ class DataBase:
         return users
 
     def get_ready_db(self):
-        """Возвращает ссылку на работчую базу данных.
+        """Возвращает ссылку на рабочую базу данных.
         Приоритет отдается удаленной БД."""
         if self.check_pg_db():
             return self.pg_db

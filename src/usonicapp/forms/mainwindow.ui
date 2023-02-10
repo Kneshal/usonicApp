@@ -187,6 +187,9 @@
             <height>72</height>
            </size>
           </property>
+          <property name="checkable">
+           <bool>false</bool>
+          </property>
          </widget>
         </item>
         <item>
@@ -381,6 +384,9 @@
              <widget class="QProgressBar" name="progressbar">
               <property name="value">
                <number>0</number>
+              </property>
+              <property name="invertedAppearance">
+               <bool>false</bool>
               </property>
              </widget>
             </item>

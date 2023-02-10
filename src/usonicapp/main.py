@@ -1,4 +1,4 @@
-import struct
+
 import sys
 from datetime import datetime
 from decimal import Decimal
@@ -16,10 +16,11 @@ from peewee import (InterfaceError, OperationalError, PostgresqlDatabase,
 from PyQt6 import QtGui, uic
 from PyQt6.QtCore import (QDate, QModelIndex, QSize, Qt, QTimer, pyqtSignal,
                           pyqtSlot)
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QTextBrowser,
                              QWidget)
-from serialport import MySerialPort
+from serialport import SerialPortManager
 from widgets import CellCheckbox, EditToolButton
 
 
@@ -491,13 +492,14 @@ class SettingsWindow(QWidget):
     """Окно настроек программы."""
     change_settings_signal: pyqtSignal = pyqtSignal()
 
-    def __init__(self, terminal: QTextBrowser, serial: MySerialPort, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, terminal: QTextBrowser, serial: SerialPortManager, db: DataBase, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
 
         self.terminal: QTextBrowser = terminal
-        self.serial: MySerialPort = serial
+        self.serial: SerialPortManager = serial
         self.db: DataBase = db
         self.init_gui()
+        self.button_save.clicked.connect(self.save_button_clicked)
 
     def init_gui(self):
         """Настраиваем графический интерфейс."""
@@ -528,7 +530,6 @@ class SettingsWindow(QWidget):
         self.combobox_serialport.addItems(serial_ports)
         index: int = self.combobox_serialport.findText(settings.COM_PORT)
         self.combobox_serialport.setCurrentIndex(index)
-        self.button_save.clicked.connect(self.save_button_clicked)
 
     @pyqtSlot()
     def save_button_clicked(self) -> None:
@@ -560,12 +561,12 @@ class MainWindow(QMainWindow):
         self.data_transfer: bool = False
         self.temporary: bool = False
         self.db: DataBase = DataBase()
+        self.com: SerialPortManager = SerialPortManager()
 
         self.init_gui()
-        self.init_serial_interface()
         self.init_windows()
         self.init_signals()
-        self.update_freq_values()
+        # self.update_freq_values()
         self.init_timers()
 
     def init_gui(self) -> None:
@@ -584,12 +585,16 @@ class MainWindow(QMainWindow):
             settings.PREVIOUS_FACTORY_NUMBER
         )
         self.devicemodel_combobox.addItems(self.db.get_models_pg())
+        self.connect_pixmap = QPixmap('icons/connect.png')
+        self.disconnect_pixmap = QPixmap('icons/disconnect.png')
+
+        self.update_serial_port_interface(False)
 
     def init_windows(self) -> None:
         """Инициализация дополнительных окон."""
         self.settings_window: SettingsWindow = SettingsWindow(
             self.terminal,
-            self.serial,
+            self.com,
             self.db,
         )
         self.table_window: TableWindow = TableWindow(
@@ -599,34 +604,19 @@ class MainWindow(QMainWindow):
 
     def init_timers(self) -> None:
         """Настраиваем таймеры."""
-        self.serial_check_timer: QTimer = QTimer()
-        self.serial_check_timer.timeout.connect(
-            lambda: self.serial.check_serial_port(settings.COM_PORT)
-        )
-        self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
+        # self.serial_check_timer: QTimer = QTimer()
+        # self.serial_check_timer.timeout.connect(
+        #     lambda: self.serial.check_serial_port(settings.COM_PORT)
+        # )
+        # self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
 
-        self.data_receive_timer: QTimer = QTimer()
-        self.data_receive_timer.timeout.connect(self.reconnection)
+        # self.data_receive_timer: QTimer = QTimer()
+        # self.data_receive_timer.timeout.connect(self.reconnection)
 
         self.db_check_timer: QTimer = QTimer()
         self.db_check_timer.timeout.connect(self.check_db_status)
         self.check_db_status()
         self.db_check_timer.start(cts.TIMER_DB_CHECK)
-
-    def init_serial_interface(self) -> None:
-        """Настраиваем COM-порт, проверяем доступность последнего
-        сохраненного порта."""
-        self.serial: MySerialPort = MySerialPort(
-            self.terminal,
-            self.comport_label
-        )
-        '''
-        self.serial.signal_port_checked.connect(
-            self.toggle_serial_interface
-        )
-        self.serial.signal_data_received.connect(self.receive_data)
-        self.serial.check_serial_port(settings.COM_PORT)
-        '''
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
@@ -644,110 +634,13 @@ class MainWindow(QMainWindow):
         self.fnumber_lineedit.textChanged.connect(
             self.search_model_for_fnumber
         )
-        self.serial.signal_calibration_response.connect(self.send_data)
+        self.com.signal_port_checked.connect(self.update_serial_port_interface)
+        self.com.signal_stop_data_transfer.connect(
+            self.startstop_button_clicked)
+        self.com.signal_transfer_progress_change.connect(
+            self.update_progress_bar)
 
-    '''
-    def update_freq_values(self) -> None:
-        """Обновляем локальные данные по частотам."""
-        self.freq_start: int = self.freq_spinbox.value()
-        self.freq_stop: int = self.freq_start + self.range_spinbox.value()
-        self.step: Decimal = round(Decimal(self.step_spinbox.value()), 2)
-        self.freq_list: list = np.arange(
-            self.freq_start, self.freq_stop, self.step
-        ).tolist()
-        self.freq_stop: Decimal = self.freq_list[-1]
-        self.current_freq: int = self.freq_start
-        self.progressbar.setMinimum(int(self.freq_start * 100))
-        self.progressbar.setMaximum(int(self.freq_stop * 100))
-
-    @pyqtSlot(bool)
-    def toggle_serial_interface(self, status=False) -> None:
-        """Меняем состояние интерфейса передачи данных."""
-        if status is False:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/start_disabled'))
-            self.devicemodel_combobox.setEnabled(False)
-            self.data_transfer = False
-            self.serial.serial.close()
-        else:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/start'))
-        self.temp_button.setEnabled(status)
-        self.startstop_button.setEnabled(status)
-        self.fnumber_lineedit.setEnabled(status)
-        self.freq_spinbox.setEnabled(status)
-        self.range_spinbox.setEnabled(status)
-        self.step_spinbox.setEnabled(status)
-
-    def open_data_transfer(self) -> None:
-        """Открываем порт, останавливаем проверку COM-порта,
-        меняем иконку кнопки, обновляем текущие частоты."""
-        self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
-        self.serial_check_timer.stop()
-        self.update_freq_values()
-        self.serial.open(settings.COM_PORT)
-        freq_start: Decimal = round(Decimal(self.freq_start), 2)
-        freq_stop: Decimal = round(Decimal(self.freq_stop), 2)
-        terminal_msg(
-            self.terminal,
-            f'Передача данных в диапазоне {freq_start} - '
-            f'{freq_stop} с шагом {self.step}'
-        )
-
-    def close_data_transfer(self) -> None:
-        """Закрываем порт, включаем проверку COM-порта,
-        меняем иконку кнопки."""
-        self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
-        self.serial.serial.close()
-        self.data_transfer = False
-        self.data_receive_timer.stop()
-        terminal_msg(self.terminal, 'Передача данных завершена')
-        # print('Close data transfer')
-        self.toggle_interface(True)
-        self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
-
-    @pyqtSlot()
-    def reconnection(self) -> None:
-        """Попытка повторной отправки данных, если COM-порт не
-        отвечает."""
-        if self.attempts_number < cts.ATTEMPTS_MAXIMUM:
-            terminal_msg(
-                self.terminal,
-                'Устройство не отвечает, попытка переподключения '
-                f'- {self.attempts_number + 1}.'
-            )
-            self.attempts_number += 1
-            self.send_data(False)
-        else:
-            self.attempts_number = 0
-            self.close_data_transfer()
-            self.toggle_serial_interface()
-
-    def send_data(self, modify: bool = True) -> None:
-        """Отправка данных на COM-порт."""
-        if modify is True:
-            self.current_freq: Decimal = self.freq_list[0]
-            self.freq_list.pop(0)
-        self.serial.serial.write(
-            cts.DATA + struct.pack('>f', self.current_freq)
-        )
-        self.data_receive_timer.start(cts.TIMER_DATA_RECEIVE_VALUE)
-
-    @pyqtSlot(dict)
-    def receive_data(self, data: dict) -> None:
-        """Получение данных с COM-порта."""
-        if not self.data_transfer:
-            # print('Abort: ', data)
-            return
-        data['freq'] = self.current_freq  # добавляем данные по частоте
-        print('receive: ', data)
-        self.attempts_number = 0
-        self.data_receive_timer.stop()
-        if not self.freq_list:
-            self.close_data_transfer()
-            return
-        self.send_data()
-        self.progressbar.setValue(int(self.current_freq * 100))
-
-    def toggle_interface(self, status: bool) -> None:
+    def toggle_serial_interface(self, status: bool) -> None:
         """Меняем состояние виджетов COM-порта."""
         self.temp_button.setEnabled(status)
         self.devicemodel_combobox.setEnabled(status)
@@ -755,45 +648,73 @@ class MainWindow(QMainWindow):
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
         self.step_spinbox.setEnabled(status)
-    '''
-    @pyqtSlot()
-    def check_db_status(self) -> None:
-        """Изменение иконки доступности БД."""
-        if self.db.check_pg_db():
-            self.database_label.setPixmap(self.online_pixmap)
-            return
-        self.database_label.setPixmap(self.offline_pixmap)
 
-    @pyqtSlot()
-    def temp_button_clicked(self) -> None:
-        """Слот изменения типа записи на временную или постоянную.
-        Меняет видимость виджета ввода заводского номера."""
-        self.temporary = not self.temporary
-        if self.temporary:
-            self.temp_button.setIcon(QtGui.QIcon('icons/temp_on.png'))
-            self.label.setVisible(False)
-            self.fnumber_lineedit.setVisible(False)
-            self.devicemodel_combobox.setEnabled(True)
-        else:
-            self.temp_button.setIcon(QtGui.QIcon('icons/temp_off.png'))
-            self.label.setVisible(True)
-            self.fnumber_lineedit.setVisible(True)
-            self.search_model_for_fnumber()
+    def get_freq_list(self) -> None:
+        """Обновляем локальные данные по частотам."""
+        freq_start: int = self.freq_spinbox.value()
+        freq_stop: int = freq_start + self.range_spinbox.value()
+        step: Decimal = round(Decimal(self.step_spinbox.value()), 2)
+        freq_list: list = np.arange(
+            freq_start,
+            freq_stop,
+            step
+        ).tolist()
+        freq_stop: Decimal = freq_list[-1]
+        self.progressbar.setMaximum(len(freq_list))
+        self.progressbar.setValue(0)
+        return freq_list
 
     @pyqtSlot()
     def startstop_button_clicked(self) -> None:
         """Слот нажатия кнопки пуска/остановки приема данных."""
-        self.data_transfer = not self.data_transfer
-        if self.data_transfer is True:
+        transfer_status = self.com.get_transfer_status()
+        self.com.toggle_transfer_status()
+
+        if transfer_status is False:
             print('Start button is clicked!')
-            self.toggle_interface(False)
-            self.open_data_transfer()
-            self.serial.calibration_request()
-            # self.send_data()
-            return
-        print('Stop button is clicked!')
-        self.close_data_transfer()
-        self.toggle_interface(True)
+            self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
+            freq_list = self.get_freq_list()
+            self.progressbar.setMaximum(len(freq_list))
+            self.progressbar.setValue(0)
+            self.toggle_serial_interface(False)
+            terminal_msg(
+                self.terminal,
+                f'Передача данных в диапазоне {freq_list[0]} - '
+                f'{freq_list[-1]} с шагом '
+                f'{self.step_spinbox.value()}'
+            )
+            self.com.start_data_transfer(freq_list)
+        else:
+            print('Stop button is clicked!')
+            self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
+            self.toggle_serial_interface(True)
+            terminal_msg(self.terminal, 'Передача данных завершена')
+            self.com.stop_data_transfer()
+
+    @pyqtSlot(int)
+    def update_progress_bar(self, value):
+        """Обновляем значение виджета."""
+        maximum = self.progressbar.maximum()
+        value = maximum - value
+        self.progressbar.setValue(value)
+
+    @pyqtSlot(bool)
+    def update_serial_port_interface(self, status) -> None:
+        """Меняем интерфейс работы с COM-портом в зависимости от
+        его доступности."""
+        if status:
+            self.comport_label.setPixmap(self.connect_pixmap)
+            self.startstop_button.setIcon(QtGui.QIcon('icons/start'))
+        else:
+            self.comport_label.setPixmap(self.disconnect_pixmap)
+            self.startstop_button.setIcon(QtGui.QIcon('icons/start_disabled'))
+            self.devicemodel_combobox.setEnabled(False)
+        self.temp_button.setEnabled(status)
+        self.startstop_button.setEnabled(status)
+        self.fnumber_lineedit.setEnabled(status)
+        self.freq_spinbox.setEnabled(status)
+        self.range_spinbox.setEnabled(status)
+        self.step_spinbox.setEnabled(status)
 
     @pyqtSlot()
     def search_model_for_fnumber(self) -> None:
@@ -843,6 +764,30 @@ class MainWindow(QMainWindow):
             return
         self.table_window.update()
         self.table_window.show()
+
+    @pyqtSlot()
+    def check_db_status(self) -> None:
+        """Изменение иконки доступности БД."""
+        if self.db.check_pg_db():
+            self.database_label.setPixmap(self.online_pixmap)
+            return
+        self.database_label.setPixmap(self.offline_pixmap)
+
+    @pyqtSlot()
+    def temp_button_clicked(self) -> None:
+        """Слот изменения типа записи на временную или постоянную.
+        Меняет видимость виджета ввода заводского номера."""
+        self.temporary = not self.temporary
+        if self.temporary:
+            self.temp_button.setIcon(QtGui.QIcon('icons/temp_on.png'))
+            self.label.setVisible(False)
+            self.fnumber_lineedit.setVisible(False)
+            self.devicemodel_combobox.setEnabled(True)
+        else:
+            self.temp_button.setIcon(QtGui.QIcon('icons/temp_off.png'))
+            self.label.setVisible(True)
+            self.fnumber_lineedit.setVisible(True)
+            self.search_model_for_fnumber()
 
     @pyqtSlot()
     def closeEvent(self, event):  # noqa
