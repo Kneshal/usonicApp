@@ -34,7 +34,8 @@ class MySerialPort(QObject):
         self.serial.setPortName(port_name)
         return self.serial.open(QIODeviceBase.OpenModeFlag.ReadWrite)
 
-    def get_serial_ports_list(self) -> list:
+    @staticmethod
+    def get_serial_ports_list() -> list:
         """Возвращает список активных COM-портов."""
         info_list = QSerialPortInfo()
         serial_list = info_list.availablePorts()
@@ -48,7 +49,8 @@ class MySerialPort(QObject):
         self.serial.write(cts.CONNECTION_CHECK)
         self.timer.start(cts.TIMER_SINGLE_CHECK_VALUE)
 
-    def create_tasks(self, data) -> list:
+    @staticmethod
+    def create_tasks(data) -> list:
         """Обработка входящих данных."""
         tasks = defaultdict(list)
         for command, length in cts.COMMANDS.items():
@@ -65,7 +67,6 @@ class MySerialPort(QObject):
     def read_data(self):
         """Слот, отвечающий за чтение и обработку поступюащих даееых."""
         rdata = self.serial.readAll()
-        # print(rdata)
         tasks = self.create_tasks(rdata.data())
         for command, data_list in tasks.items():
             for data in data_list:
@@ -76,7 +77,6 @@ class MySerialPort(QObject):
                         byteorder='little',
                     )
                     self.comport_label.setPixmap(self.connect_pixmap)
-                    # print('Serial port checked successfully')
                     self.timer.stop()
                     self.signal_port_checked.emit(True)
                 elif command == cts.DATA:
@@ -88,7 +88,7 @@ class MySerialPort(QObject):
                         'Vref': int.from_bytes(data[8:10], byteorder='little'),
                         'VI': int.from_bytes(data[10:12], byteorder='little'),
                     }
-                    result = self.calc_data(received_data)
+                    result = self.calc_data(received_data, self.calibration)
                     self.signal_data_received.emit(result)
                 elif command == cts.CALIBRATION:
                     self.calibration = int.from_bytes(
@@ -103,17 +103,19 @@ class MySerialPort(QObject):
         """Запрос калибровок."""
         self.serial.write(cts.CALIBRATION)
 
-    def calc_data(self, data) -> dict:
+    @staticmethod
+    def calc_data(data, calibration) -> dict:
         """Расчет параметров на основе данных от COM-порта."""
-        vphl = data.get('Vphl')
-        vdbi = data.get('VdBI')
-        vphu = data.get('VphU')
-        vdbu = data.get('VdBU')
-        vref = data.get('Vref')
-        vi = data.get('VI')
+        vphi: Decimal = data.get('Vphl')
+        vdbi: Decimal = data.get('VdBI')
+        vphu: Decimal = data.get('VphU')
+        vdbu: Decimal = data.get('VdBU')
+        vref: Decimal = data.get('Vref')
+        vi: Decimal = data.get('VI')
+        calibration = calibration / 100
 
-        z = (self.calibration / 100 * pow(10, (((vdbu - vref / 2) - (vdbi - vref / 2)) / 600)))
-        ph = (vphu/10 - vphl/10)
+        z = (calibration * pow(10, (((vdbu - vref / 2) - (vdbi - vref / 2)) / 600)))  # noqa
+        ph = (vphu/10 - vphi/10)
         r = z * math.cos(ph)
         x = z * math.sin(ph)
         i = cts.INDEX_I * pow(10, ((vi - 2500) / 480))
@@ -128,13 +130,10 @@ class MySerialPort(QObject):
             round(Decimal(i), 2),
             round(Decimal(u), 2),
         )
-        result = dict(zip(keys, values))
-        print(result)
-        return data
+        return dict(zip(keys, values))
 
     def no_response(self):
         """COM порт не отвечает."""
-        # print('No response from COM-port')
         self.timer.stop()
         self.comport_label.setPixmap(self.disconnect_pixmap)
         self.signal_port_checked.emit(False)

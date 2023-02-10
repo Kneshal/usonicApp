@@ -61,12 +61,30 @@ class DataBase:
         self.close(db)
         return record
 
+    @staticmethod
+    def record_data_validation(data, user, device_model) -> dict | None:
+        """Валидация входящих данных для записи."""
+        username = data.get('username')
+        factory_number = data.get('factory_number')
+        title = data.get('title')
+        if ((not username or not factory_number or not title)
+                or (user is None)
+                or (device_model is None)
+                or (len(factory_number) != 13)):
+            return None
+        return data
+
     def update_record(self, db: PostgresqlDatabase | SqliteDatabase, id: int, data: dict) -> bool:  # noqa
         """Обновляем запись в заданной БД."""
         if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
             return False
+
         user = User.get_or_none(username=data.get('username'))
         device_model = DeviceModel.get_or_none(title=data.get('title'))
+
+        if not DataBase.record_data_validation(data, user, device_model):
+            print('Validation failed')
+            return False
         Record.update(
             {
                 Record.device_model: device_model,

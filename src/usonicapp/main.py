@@ -282,7 +282,8 @@ class TableWindow(QWidget):
             return self.pg_filter_window.get_filter_settings()
         return self.sqlite_filter_window.get_filter_settings()
 
-    def set_color_to_row(self, table: QTableWidget, row_index: int, color: QtGui.QColor) -> None:  # noqa
+    @staticmethod
+    def set_color_to_row(table: QTableWidget, row_index: int, color: QtGui.QColor) -> None:  # noqa
         """Задаем цвет заданной строки таблицы."""
         for i in range(table.columnCount()):
             item: QTableWidgetItem = table.item(row_index, i)
@@ -619,11 +620,13 @@ class MainWindow(QMainWindow):
             self.terminal,
             self.comport_label
         )
+        '''
         self.serial.signal_port_checked.connect(
             self.toggle_serial_interface
         )
         self.serial.signal_data_received.connect(self.receive_data)
         self.serial.check_serial_port(settings.COM_PORT)
+        '''
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
@@ -643,6 +646,7 @@ class MainWindow(QMainWindow):
         )
         self.serial.signal_calibration_response.connect(self.send_data)
 
+    '''
     def update_freq_values(self) -> None:
         """Обновляем локальные данные по частотам."""
         self.freq_start: int = self.freq_spinbox.value()
@@ -734,7 +738,7 @@ class MainWindow(QMainWindow):
             # print('Abort: ', data)
             return
         data['freq'] = self.current_freq  # добавляем данные по частоте
-        # print('receive: ', data)
+        print('receive: ', data)
         self.attempts_number = 0
         self.data_receive_timer.stop()
         if not self.freq_list:
@@ -751,7 +755,7 @@ class MainWindow(QMainWindow):
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
         self.step_spinbox.setEnabled(status)
-
+    '''
     @pyqtSlot()
     def check_db_status(self) -> None:
         """Изменение иконки доступности БД."""
