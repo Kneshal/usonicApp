@@ -4,12 +4,15 @@ import constants as cts
 from config import settings
 from models import DeviceModel, Point, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
 
-class DataBase:
+class DataBase(QObject):
     """Класс описывает действующие базы данных и взаимодействие с ними."""
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    pg_db_checked_signal: pyqtSignal = pyqtSignal(bool)
+
+    def __init__(self) -> None:
+        super().__init__()
         self.pg_db = PostgresqlDatabase(
             None,
             autoconnect=False,
@@ -20,6 +23,14 @@ class DataBase:
             pragmas={'foreign_keys': 1}
         )
 
+    def init_timers(self) -> None:
+        """Настройка и запуск таймеров."""
+        self.db_check_timer: QTimer = QTimer()
+        self.db_check_timer.setInterval(cts.TIMER_DB_CHECK)
+        self.db_check_timer.timeout.connect(self.check_db_status)
+        self.check_db_status()
+        self.db_check_timer.start()
+
     def init_pg_db(self) -> None:
         """Инициализация базы данных PostgreSql"""
         self.pg_db.init(
@@ -29,6 +40,12 @@ class DataBase:
             password=settings.DB_PASSWORD,
             port=settings.DB_PORT,
         )
+
+    @pyqtSlot()
+    def check_db_status(self) -> None:
+        """Изменение иконки доступности БД."""
+        status = self.check_pg_db()
+        return self.pg_db_checked_signal.emit(status)
 
     def connect_and_bind_models(self, db, models) -> None:
         """Подключаемся к бд и привязываем модели."""
@@ -46,18 +63,33 @@ class DataBase:
         """Разрываем соединение с БД."""
         db.close()
 
-    def get_record(self, db, id: int) -> Record | None:
+    def get_device_model_title_by_fnumber(self, factory_number: str) -> str | None:  # noqa
+        """Возвращает название модели по указанной записи."""
+        record = self.get_record(factory_number=factory_number)
+        if record is None:
+            return None
+        return record.device_model.title
+
+    def get_record(self, db: PostgresqlDatabase | SqliteDatabase = None, id: int = None, factory_number: str = None) -> Record | None:  # noqa
         """Возвращает запись с заданным id из указанной БД."""
-        record = None
+        if db is None:
+            db = self.get_ready_db()
         if not self.connect_and_bind_models(db, [Record]):
             return None
-        record: Record = (Record
-                          .select(Record, User, DeviceModel)
-                          .join(User)
-                          .switch(Record)
-                          .join(DeviceModel)
-                          .where(Record.id == id)
-                          .get_or_none())
+        query = (Record
+                 .select(Record, User, DeviceModel)
+                 .join(User)
+                 .switch(Record)
+                 .join(DeviceModel))
+        record = None
+        if id:
+            record: Record = (query
+                              .where(Record.id == id)
+                              .get_or_none())
+        elif factory_number:
+            record: Record = (query
+                              .where(Record.factory_number == factory_number)
+                              .get_or_none())
         self.close(db)
         return record
 

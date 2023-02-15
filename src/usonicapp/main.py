@@ -1,4 +1,3 @@
-
 import sys
 from datetime import datetime
 from decimal import Decimal
@@ -11,34 +10,26 @@ from database import DataBase
 from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import Record
-from peewee import (InterfaceError, OperationalError, PostgresqlDatabase,
-                    SqliteDatabase)
+from peewee import PostgresqlDatabase, SqliteDatabase
+from plottab import PlotTab
 from PyQt6 import QtGui, uic
-from PyQt6.QtCore import (QDate, QModelIndex, QSize, Qt, QTimer, pyqtSignal,
-                          pyqtSlot)
+from PyQt6.QtCore import QDate, QModelIndex, QSize, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
-                             QTableWidget, QTableWidgetItem, QTextBrowser,
-                             QWidget)
+                             QTableWidget, QTableWidgetItem, QWidget)
 from serialport import SerialPortManager
 from widgets import CellCheckbox, EditToolButton
-
-
-def terminal_msg(terminal: QTextBrowser, message: str) -> None:
-    """Добавляем текущее время и текст в терминал."""
-    current_time: datetime = datetime.now().time().strftime('%H:%M')
-    terminal.append(f'{current_time} - {message}')
 
 
 class EditRecordWindow(QWidget):
     """Окно редактирования записи БД."""
     edit_signal: pyqtSignal = pyqtSignal(QTableWidget)
+    terminal_signal: pyqtSignal = pyqtSignal(str)
 
-    def __init__(self, db: DataBase, terminal: QTextBrowser, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
         self.db: DataBase = db
         self.record: Record = Record()
-        self.terminal: QTextBrowser = terminal
         self.current_db: PostgresqlDatabase | SqliteDatabase | None = None
         self.table: QTableWidget | None = None
         self.init_gui()
@@ -98,14 +89,12 @@ class EditRecordWindow(QWidget):
         result = self.db.update_record(self.current_db, self.record.id, data)
         if result:
             self.edit_signal.emit(self.table)
-            terminal_msg(
-                self.terminal,
+            self.terminal_signal.emit(
                 f'Запись (id={self.record.id}) была отредактирована. '
                 'Изменения внесены в БД.'
             )
         else:
-            terminal_msg(
-                self.terminal,
+            self.terminal_signal.emit(
                 'Ошибка в процессе редактирования записи '
                 f'(id={self.record.id}).'
             )
@@ -186,10 +175,10 @@ class FilterWindow(QWidget):
 
 
 class TableWindow(QWidget):
+    terminal_signal: pyqtSignal = pyqtSignal(str)
     """Таблица базы данных программы."""
-    def __init__(self, terminal: QTextBrowser, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
-        self.terminal: QTextBrowser = terminal
         self.db: DataBase = db
         self.selected_records: dict = {
             cts.PG_TABLE: [],
@@ -222,7 +211,7 @@ class TableWindow(QWidget):
         self.pg_filter_window: FilterWindow = FilterWindow(self.db)
         self.sqlite_filter_window: FilterWindow = FilterWindow(self.db)
         self.edit_record_window: EditRecordWindow = EditRecordWindow(
-            self.db, self.terminal)
+            self.db)
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
@@ -430,13 +419,11 @@ class TableWindow(QWidget):
             return
         result: bool = self.db.delete_records(db, list_id)
         if result:
-            terminal_msg(
-                self.terminal,
+            self.terminal_signal.emit(
                 f'Из базы данных удалено записей: {len(list_id)}.'
             )
         else:
-            terminal_msg(
-                self.terminal,
+            self.terminal_signal.emit(
                 'Не удалось удалить данные из базы данных.'
             )
         self.load_data(self.get_current_table())
@@ -491,13 +478,10 @@ class TableWindow(QWidget):
 class SettingsWindow(QWidget):
     """Окно настроек программы."""
     change_settings_signal: pyqtSignal = pyqtSignal()
+    terminal_signal: pyqtSignal = pyqtSignal(str)
 
-    def __init__(self, terminal: QTextBrowser, serial: SerialPortManager, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, *args, **kwargs) -> None:  # noqa
         super().__init__(*args, **kwargs)
-
-        self.terminal: QTextBrowser = terminal
-        self.serial: SerialPortManager = serial
-        self.db: DataBase = db
         self.init_gui()
         self.button_save.clicked.connect(self.save_button_clicked)
 
@@ -507,17 +491,24 @@ class SettingsWindow(QWidget):
         self.setWindowIcon(QtGui.QIcon('icons/logo_settings.png'))
         self.setWindowTitle('Настройки')
 
-    def update(self) -> None:
+    def update(self, users: list, serial_ports: list) -> None:
         """Обновляем данные виджетов окна настроек."""
-        users: list = self.db.get_users_pg()
         self.combobox_user.clear()
         self.combobox_user.addItems(users)
         index: int = self.combobox_user.findText(settings.OPERATOR)
-        if index == -1:
+        if index != -1:
+            self.combobox_user.setCurrentIndex(index)
+
+        else:
             self.combobox_user.insertItem(0, settings.OPERATOR)
             self.combobox_user.setCurrentIndex(0)
-        else:
-            self.combobox_user.setCurrentIndex(index)
+
+        self.combobox_serialport.clear()
+        self.combobox_serialport.addItems(serial_ports)
+        index: int = self.combobox_serialport.findText(settings.COM_PORT)
+        if index != -1:
+            self.combobox_serialport.setCurrentIndex(index)
+
         self.disp_records_spinbox.setValue(settings.DISPLAY_RECORDS)
         self.lineedit_dbname.setText(settings.DB_NAME)
         self.lineedit_dbuser.setText(settings.DB_USER)
@@ -525,11 +516,7 @@ class SettingsWindow(QWidget):
         self.lineedit_dbhost.setText(settings.DB_HOST)
         self.spinbox_port.setValue(settings.DB_PORT)
         self.checkbox_bugreport.setChecked(settings.BUG_REPORT)
-        serial_ports: list = self.serial.get_serial_ports_list()
-        self.combobox_serialport.clear()
-        self.combobox_serialport.addItems(serial_ports)
-        index: int = self.combobox_serialport.findText(settings.COM_PORT)
-        self.combobox_serialport.setCurrentIndex(index)
+        self.fps_spinbox.setValue(settings.FPS)
 
     @pyqtSlot()
     def save_button_clicked(self) -> None:
@@ -544,9 +531,10 @@ class SettingsWindow(QWidget):
         settings.DB_PORT: int = self.spinbox_port.value()
         settings.BUG_REPORT: bool = self.checkbox_bugreport.isChecked()
         settings.COM_PORT: str = self.combobox_serialport.currentText()
+        settings.FPS: int = self.fps_spinbox.value()
         data: dict = settings.as_dict()
         loaders.write('settings.toml', DynaBox(data).to_dict())
-        terminal_msg(self.terminal, 'Настройки программы сохранены')
+        self.terminal_signal.emit('Настройки программы сохранены')
         self.change_settings_signal.emit()
         self.hide()
 
@@ -555,23 +543,21 @@ class MainWindow(QMainWindow):
     """Основное окно программы."""
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.online_pixmap = QtGui.QPixmap('icons/online.png')
-        self.offline_pixmap = QtGui.QPixmap('icons/offline.png')
-        self.attempts_number = 0
-        self.data_transfer: bool = False
+        uic.loadUi('forms/mainwindow.ui', self)
         self.temporary: bool = False
         self.db: DataBase = DataBase()
-        self.com: SerialPortManager = SerialPortManager()
+        self.serial_manager: SerialPortManager = SerialPortManager()
+        self.storage: dict = {}
 
         self.init_gui()
         self.init_windows()
         self.init_signals()
-        # self.update_freq_values()
-        self.init_timers()
+
+        self.db.init_timers()
+        self.serial_manager.init_timers()
 
     def init_gui(self) -> None:
         """Настройка графического интерфейса."""
-        uic.loadUi('forms/mainwindow.ui', self)
         self.centralwidget.setContentsMargins(6, 6, 6, 6)
         self.setWindowIcon(QtGui.QIcon('icons/logo_main.png'))
         self.setWindowTitle('Usonic App')
@@ -587,58 +573,49 @@ class MainWindow(QMainWindow):
         self.devicemodel_combobox.addItems(self.db.get_models_pg())
         self.connect_pixmap = QPixmap('icons/connect.png')
         self.disconnect_pixmap = QPixmap('icons/disconnect.png')
+        self.online_pixmap = QtGui.QPixmap('icons/online.png')
+        self.offline_pixmap = QtGui.QPixmap('icons/offline.png')
 
         self.update_serial_port_interface(False)
 
     def init_windows(self) -> None:
         """Инициализация дополнительных окон."""
-        self.settings_window: SettingsWindow = SettingsWindow(
-            self.terminal,
-            self.com,
-            self.db,
-        )
-        self.table_window: TableWindow = TableWindow(
-            self.terminal,
-            self.db,
-        )
-
-    def init_timers(self) -> None:
-        """Настраиваем таймеры."""
-        # self.serial_check_timer: QTimer = QTimer()
-        # self.serial_check_timer.timeout.connect(
-        #     lambda: self.serial.check_serial_port(settings.COM_PORT)
-        # )
-        # self.serial_check_timer.start(cts.TIMER_CHECK_VALUE)
-
-        # self.data_receive_timer: QTimer = QTimer()
-        # self.data_receive_timer.timeout.connect(self.reconnection)
-
-        self.db_check_timer: QTimer = QTimer()
-        self.db_check_timer.timeout.connect(self.check_db_status)
-        self.check_db_status()
-        self.db_check_timer.start(cts.TIMER_DB_CHECK)
+        self.settings_window: SettingsWindow = SettingsWindow()
+        self.table_window: TableWindow = TableWindow(self.db)
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
+        # Попробовать перенести инициализацию сигналов в соответствующие классы
+        # Кнопки и другие виджеты
         self.settings_button.clicked.connect(self.settings_button_clicked)
         self.startstop_button.clicked.connect(self.startstop_button_clicked)
         self.compare_button.clicked.connect(self.compare_button_clicked)
         self.table_button.clicked.connect(self.table_button_clicked)
         self.temp_button.clicked.connect(self.temp_button_clicked)
-        self.settings_window.change_settings_signal.connect(
-            self.table_window.pg_filter_window.update_widget
-        )
-        self.settings_window.change_settings_signal.connect(
-            self.table_window.sqlite_filter_window.update_widget
-        )
         self.fnumber_lineedit.textChanged.connect(
-            self.search_model_for_fnumber
-        )
-        self.com.signal_port_checked.connect(self.update_serial_port_interface)
-        self.com.signal_stop_data_transfer.connect(
+            self.search_model_by_fnumber)
+        # Окно настроек
+        self.settings_window.change_settings_signal.connect(
+            self.table_window.pg_filter_window.update_widget)
+        self.settings_window.change_settings_signal.connect(
+            self.table_window.sqlite_filter_window.update_widget)
+        self.settings_window.terminal_signal.connect(self.terminal_msg)
+        # Окно базы данных
+        self.table_window.terminal_signal.connect(self.terminal_msg)
+        # Окно редактирования записи
+        self.table_window.edit_record_window.terminal_signal.connect(
+            self.terminal_msg)
+        # COM-порт
+        self.serial_manager.signal_port_checked.connect(
+            self.update_serial_port_interface)
+        self.serial_manager.signal_stop_data_transfer.connect(
             self.startstop_button_clicked)
-        self.com.signal_transfer_progress_change.connect(
+        self.serial_manager.signal_transfer_progress_change.connect(
             self.update_progress_bar)
+        # БД
+        self.db.pg_db_checked_signal.connect(self.update_pg_db_pixmap)
+        # Tabwidget
+        self.tabwidget.tabCloseRequested.connect(self.delete_tab)
 
     def toggle_serial_interface(self, status: bool) -> None:
         """Меняем состояние виджетов COM-порта."""
@@ -649,8 +626,8 @@ class MainWindow(QMainWindow):
         self.range_spinbox.setEnabled(status)
         self.step_spinbox.setEnabled(status)
 
-    def get_freq_list(self) -> None:
-        """Обновляем локальные данные по частотам."""
+    def get_freq_list(self) -> list:
+        """Возвращает заданные пользователем данные по частоте."""
         freq_start: int = self.freq_spinbox.value()
         freq_stop: int = freq_start + self.range_spinbox.value()
         step: Decimal = round(Decimal(self.step_spinbox.value()), 2)
@@ -660,40 +637,87 @@ class MainWindow(QMainWindow):
             step
         ).tolist()
         freq_stop: Decimal = freq_list[-1]
-        self.progressbar.setMaximum(len(freq_list))
-        self.progressbar.setValue(0)
         return freq_list
 
     @pyqtSlot()
     def startstop_button_clicked(self) -> None:
         """Слот нажатия кнопки пуска/остановки приема данных."""
-        transfer_status = self.com.get_transfer_status()
-        self.com.toggle_transfer_status()
+        transfer_status = self.serial_manager.get_transfer_status()
+        self.serial_manager.toggle_transfer_status()
 
         if transfer_status is False:
-            print('Start button is clicked!')
             self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
             freq_list = self.get_freq_list()
             self.progressbar.setMaximum(len(freq_list))
             self.progressbar.setValue(0)
             self.toggle_serial_interface(False)
-            terminal_msg(
-                self.terminal,
+            self.terminal_msg(
                 f'Передача данных в диапазоне {freq_list[0]} - '
                 f'{freq_list[-1]} с шагом '
                 f'{self.step_spinbox.value()}'
             )
-            self.com.start_data_transfer(freq_list)
+
+            factory_number = self.fnumber_lineedit.text()
+            device_model_title = self.devicemodel_combobox.currentText()
+            username = settings.OPERATOR
+            self.create_tab(
+                factory_number=factory_number,
+                device_model_title=device_model_title,
+                username=username,
+                )
+            self.plottab.update_timer.start()
+            self.serial_manager.start_data_transfer(freq_list)
         else:
-            print('Stop button is clicked!')
             self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
             self.toggle_serial_interface(True)
-            terminal_msg(self.terminal, 'Передача данных завершена')
-            self.com.stop_data_transfer()
+            self.terminal_msg('Передача данных завершена')
+            self.serial_manager.stop_data_transfer()
+            self.plottab.update_timer.stop()
+
+    def create_tab(self, factory_number: str, device_model_title: str, username: str):  # noqa
+        """Создает новую вкладку QTabwidget и соответствующий объект с
+        графиками. Устанавливает связь между полученрием данных от
+        COM-порта и методом объекта plottab."""
+        date = datetime.now().strftime('%H:%M:%S')
+        title = f'{date} - {factory_number}'
+        # add min and max
+        self.plottab = PlotTab(
+            self.tabwidget,
+            factory_number,
+            device_model_title,
+            username,
+            date,
+         )
+        try:
+            self.serial_manager.signal_send_point.disconnect()
+        except TypeError:
+            pass
+        self.serial_manager.signal_send_point.connect(self.plottab.add_data)
+        self.tabwidget.addTab(self.plottab.page, title)
+        self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
+        page = self.plottab.page
+        self.storage[page] = self.plottab
+
+    @pyqtSlot(int)
+    def delete_tab(self, index: int) -> bool:
+        """Удаляет запись из локального хранилища. Поиск по вложенному
+        виджету."""
+        try:
+            page = self.tabwidget.widget(index)
+            self.tabwidget.removeTab(index)
+            del self.storage[page]
+            print(self.storage)
+            return True
+        except KeyError:
+            self.terminal_msg(
+                'Не удалось удалить запись из локального хранилища.'
+            )
+            return False
 
     @pyqtSlot(int)
     def update_progress_bar(self, value):
-        """Обновляем значение виджета."""
+        """Обновляет по срабатыванию сигнала значение
+        виджета progressbar."""
         maximum = self.progressbar.maximum()
         value = maximum - value
         self.progressbar.setValue(value)
@@ -717,38 +741,32 @@ class MainWindow(QMainWindow):
         self.step_spinbox.setEnabled(status)
 
     @pyqtSlot()
-    def search_model_for_fnumber(self) -> None:
+    def search_model_by_fnumber(self) -> None:
         """Слот для подбора модели аппарата из БД под заданный
         заводской номер."""
         factory_number: str = self.fnumber_lineedit.text()
         if len(factory_number) != 13:
             self.devicemodel_combobox.setEnabled(False)
             return
-        try:
-            db: PostgresqlDatabase | SqliteDatabase = self.db.get_ready_db()
-            self.db.connect_and_bind_models(db, [Record])
-            record: Record = Record.get_or_none(
-                Record.factory_number == factory_number
-            )
-            print(record)
-            self.db.close(db)
-            if record is None:
-                self.devicemodel_combobox.setEnabled(True)
-                return
-            device_model: str = record.device_model.title
-            index: int = self.devicemodel_combobox.findText(device_model)
-            self.devicemodel_combobox.setCurrentIndex(index)
-            self.devicemodel_combobox.setEnabled(False)
-        except (OperationalError, InterfaceError):
+        title: str = self.db.get_device_model_title_by_fnumber(
+            factory_number=factory_number)
+        if title is None:
+            self.devicemodel_combobox.setEnabled(True)
             return
+        index: int = self.devicemodel_combobox.findText(title)
+        self.devicemodel_combobox.setCurrentIndex(index)
+        self.devicemodel_combobox.setEnabled(False)
 
     @pyqtSlot()
     def settings_button_clicked(self) -> None:
-        """Слот нажатия кнопки настроек. Открывает окно настроек."""
+        """Слот нажатия кнопки настроек. Открывает окно настроек
+        и обновляет его актуальными списками пользователей и COM-портов."""
         if self.settings_window.isVisible():
             self.settings_window.hide()
             return
-        self.settings_window.update()
+        users: list = self.db.get_users_pg()
+        serial_ports: list = self.serial_manager.get_serial_ports_list()
+        self.settings_window.update(users, serial_ports)
         self.settings_window.show()
 
     @pyqtSlot()
@@ -765,10 +783,10 @@ class MainWindow(QMainWindow):
         self.table_window.update()
         self.table_window.show()
 
-    @pyqtSlot()
-    def check_db_status(self) -> None:
+    @pyqtSlot(bool)
+    def update_pg_db_pixmap(self, status) -> None:
         """Изменение иконки доступности БД."""
-        if self.db.check_pg_db():
+        if status:
             self.database_label.setPixmap(self.online_pixmap)
             return
         self.database_label.setPixmap(self.offline_pixmap)
@@ -787,7 +805,7 @@ class MainWindow(QMainWindow):
             self.temp_button.setIcon(QtGui.QIcon('icons/temp_off.png'))
             self.label.setVisible(True)
             self.fnumber_lineedit.setVisible(True)
-            self.search_model_for_fnumber()
+            self.search_model_by_fnumber()
 
     @pyqtSlot()
     def closeEvent(self, event):  # noqa
@@ -796,6 +814,12 @@ class MainWindow(QMainWindow):
             self.settings_window.close()
         if self.table_window:
             self.table_window.close()
+
+    @pyqtSlot(str)
+    def terminal_msg(self, message: str) -> None:
+        """Добавляем текущее время и текст в терминал."""
+        current_time: datetime = datetime.now().time().strftime('%H:%M')
+        self.terminal.append(f'{current_time} - {message}')
 
 
 if __name__ == '__main__':

@@ -10,13 +10,13 @@ from PyQt6.QtSerialPort import QSerialPort, QSerialPortInfo
 
 
 class SerialPortManager(QObject):
+    """Вспомогательный класс для работы с COM портом."""
     signal_port_checked = pyqtSignal(bool)
-    signal_data_received = pyqtSignal(dict)
+    signal_send_point = pyqtSignal(dict)
     signal_calibration_response = pyqtSignal()
     signal_stop_data_transfer = pyqtSignal()
     signal_transfer_progress_change = pyqtSignal(int)
 
-    """Класс для работы с COM портом в отдельном потоке."""
     def __init__(self) -> None:
         super().__init__()
         self.serial = QSerialPort()
@@ -31,6 +31,8 @@ class SerialPortManager(QObject):
         self.freq_list = []
         self.attempts_number = 0
 
+    def init_timers(self) -> None:
+        """Настройка и запуск таймеров."""
         self.check_connection_timer = QTimer()
         self.check_connection_timer.setInterval(cts.TIMER_CHECK_SERIAL_PORT)
         self.check_connection_timer.timeout.connect(self.check_serial_port)
@@ -140,13 +142,14 @@ class SerialPortManager(QObject):
     def send_data(self, modify: bool = True) -> None:
         """Отправка данных на COM-порт."""
         if modify is True:
-            self.current_freq: Decimal = self.freq_list[0]
+            self.current_freq: int = int(self.freq_list[0] * 100)  # не точно
             self.freq_list.pop(0)
         self.serial.write(
-            cts.DATA + struct.pack('>f', self.current_freq)
+            cts.DATA + struct.pack('<i', self.current_freq)
         )
-        self.data_receive_timer.start(cts.TIMER_DATA_RECEIVE_VALUE)
+        self.data_receive_timer.start(cts.TIMER_DATA_RECEIVE)
 
+    # Возможно использовать декоратор, но проверить тип посылки
     def read_data(self):
         """Слот, отвечающий за чтение и обработку поступюащих даееых."""
         rdata = self.serial.readAll()
@@ -172,13 +175,12 @@ class SerialPortManager(QObject):
                         'Vref': int.from_bytes(data[8:10], byteorder='little'),
                         'VI': int.from_bytes(data[10:12], byteorder='little'),
                     }
-                    # print(received_data)
                     result = self.calc_data(received_data, self.calibration)
-                    result['freq'] = self.current_freq
-                    # print(result)
+                    result['f'] = self.current_freq / 100
                     self.signal_transfer_progress_change.emit(
                         len(self.freq_list)
                     )
+                    self.signal_send_point.emit(result)
                     if not self.freq_list:
                         self.signal_stop_data_transfer.emit()
                     else:
@@ -188,6 +190,7 @@ class SerialPortManager(QObject):
                         data[0:2],
                         byteorder='little'
                     )
+                    self.calibration = self.calibration / 1000
                     self.send_data()
                 elif command == cts.VOLTAGE:
                     pass

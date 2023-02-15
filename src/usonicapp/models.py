@@ -105,7 +105,7 @@ class Record(BaseModel):
     #     )
 
     def __str__(self):
-        return f'{self.date} - {self.factory_number} -{self.device_model}'
+        return f'{self.date} - {self.factory_number}'
 
 
 class Point(BaseModel):
