@@ -209,7 +209,7 @@ class SerialPortManager(QObject):
         calibration = calibration / 100
 
         z = (calibration * pow(10, (((vdbu - vref / 2) - (vdbi - vref / 2)) / 600)))  # noqa
-        ph = (vphu/10 - vphi/10)
+        ph = (vphi/10 - vphu/10)
         r = z * math.cos(math.radians(ph))
         x = z * math.sin(math.radians(ph))
         i = cts.INDEX_I * pow(10, ((vi - 2500) / 480))
@@ -222,7 +222,7 @@ class SerialPortManager(QObject):
             round(Decimal(r), 2),
             round(Decimal(x), 2),
             round(Decimal(ph), 2),
-            round(Decimal(i), 4),
+            round(Decimal(i), 8),
             round(Decimal(u), 2),
         )
         return dict(zip(keys, values))

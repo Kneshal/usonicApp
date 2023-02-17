@@ -108,7 +108,7 @@ class Record(BaseModel):
         return f'{self.date} - {self.factory_number}'
 
 
-class Point(BaseModel):
+class Data(BaseModel):
     record = ForeignKeyField(
         Record,
         verbose_name='Запись об измерении',

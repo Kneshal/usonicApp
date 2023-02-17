@@ -11,14 +11,48 @@ from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import Record
 from peewee import PostgresqlDatabase, SqliteDatabase
-from plottab import PlotTab
+from plottab import PlotTab, PlotUpdateWorker
 from PyQt6 import QtGui, uic
-from PyQt6.QtCore import QDate, QModelIndex, QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
+                          pyqtSignal, pyqtSlot)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QWidget)
 from serialport import SerialPortManager
 from widgets import CellCheckbox, EditToolButton
+
+
+class UploadWindow(QWidget):
+    """Окно загрузки данных на сервера."""
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa
+        super().__init__(*args, **kwargs)
+        self.record = None
+        self.init_gui()
+        self.init_signals()
+
+    def init_gui(self) -> None:
+        """Настраиваем графический интерфейс."""
+        uic.loadUi('forms/upload.ui', self)
+        self.setWindowIcon(QtGui.QIcon('icons/logo_upload.png'))
+        self.setWindowTitle('Загрузить запись')
+
+    def init_signals(self) -> None:
+        """Подключаем сигналы к слотам."""
+        pass
+
+    @pyqtSlot(dict)
+    def update(self, record: dict, pg_db_status: bool) -> None:
+        """Заполнение виджетов."""
+        self.fnumber_lineedit.setText(record.get('factory_number'))
+        self.title_combobox.addItem(record.get('title'))
+        print(pg_db_status)
+        self.pg_radiobutton.setEnabled(pg_db_status)
+        if pg_db_status:
+            self.pg_radiobutton.setChecked(True)
+        else:
+            self.sqlite_radiobutton.setChecked(True)
+        self.record = record
 
 
 class EditRecordWindow(QWidget):
@@ -551,6 +585,8 @@ class MainWindow(QMainWindow):
 
         self.init_gui()
         self.init_windows()
+        self.init_timers()
+        self.init_threads()
         self.init_signals()
 
         self.db.init_timers()
@@ -566,6 +602,7 @@ class MainWindow(QMainWindow):
         self.compare_button.setIcon(QtGui.QIcon('icons/compare.png'))
         self.table_button.setIcon(QtGui.QIcon('icons/table.png'))
         self.temp_button.setIcon(QtGui.QIcon('icons/temp_off.png'))
+        self.upload_button.setIcon(QtGui.QIcon('icons/upload_false.png'))
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
         self.fnumber_lineedit.setText(
             settings.PREVIOUS_FACTORY_NUMBER
@@ -582,6 +619,20 @@ class MainWindow(QMainWindow):
         """Инициализация дополнительных окон."""
         self.settings_window: SettingsWindow = SettingsWindow()
         self.table_window: TableWindow = TableWindow(self.db)
+        self.upload_window: UploadWindow = UploadWindow()
+
+    def init_timers(self) -> None:
+        """Настройка таймеров."""
+        self.plot_update_timer: QTimer = QTimer()
+        interval: int = int(1000 / settings.FPS)
+        self.plot_update_timer.setInterval(interval)
+
+    def init_threads(self) -> None:
+        """Инициализация потоков."""
+        self.plot_update_worker = PlotUpdateWorker()
+        self.plot_update_thread = QThread(parent=self)
+        self.plot_update_worker.moveToThread(self.plot_update_thread)
+        self.plot_update_thread.start()
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
@@ -594,6 +645,7 @@ class MainWindow(QMainWindow):
         self.temp_button.clicked.connect(self.temp_button_clicked)
         self.fnumber_lineedit.textChanged.connect(
             self.search_model_by_fnumber)
+        self.upload_button.clicked.connect(self.upload_button_clicked)
         # Окно настроек
         self.settings_window.change_settings_signal.connect(
             self.table_window.pg_filter_window.update_widget)
@@ -615,8 +667,10 @@ class MainWindow(QMainWindow):
         # БД
         self.db.pg_db_checked_signal.connect(self.update_pg_db_pixmap)
         # Tabwidget
-        self.tabwidget.tabCloseRequested.connect(self.delete_tab)
+        self.tabwidget.tabCloseRequested.connect(self.close_tab)
+        self.tabwidget.currentChanged.connect(self.toggle_upload_button_status)
 
+    @pyqtSlot(bool)
     def toggle_serial_interface(self, status: bool) -> None:
         """Меняем состояние виджетов COM-порта."""
         self.temp_button.setEnabled(status)
@@ -639,40 +693,79 @@ class MainWindow(QMainWindow):
         freq_stop: Decimal = freq_list[-1]
         return freq_list
 
+    @pyqtSlot(int)
+    def toggle_upload_button_status(self, index) -> None:
+        """Меняет состояние кнопки и иконку."""
+        if index != -1:
+            self.upload_button.setIcon(QtGui.QIcon('icons/upload_true.png'))
+            self.upload_button.setEnabled(True)
+        else:
+            self.upload_button.setIcon(QtGui.QIcon('icons/upload_false.png'))
+            self.upload_button.setEnabled(False)
+
+    @pyqtSlot()
+    def upload_button_clicked(self) -> None:
+        """Нажатие кнопки выгрузки данных на сервер."""
+        index = self.tabwidget.currentIndex()
+        page = self.tabwidget.widget(index)
+        plottab = self.storage.get(page)
+        if plottab is None:
+            return
+
+        # print(plottab.record)
+
+        if self.upload_window.isVisible():
+            self.upload_window.hide()
+            return
+        pg_db_status = self.db.check_pg_db()
+        self.upload_window.update(plottab.record, pg_db_status)
+        self.upload_window.show()
+
     @pyqtSlot()
     def startstop_button_clicked(self) -> None:
         """Слот нажатия кнопки пуска/остановки приема данных."""
         transfer_status = self.serial_manager.get_transfer_status()
         self.serial_manager.toggle_transfer_status()
-
         if transfer_status is False:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
-            freq_list = self.get_freq_list()
-            self.progressbar.setMaximum(len(freq_list))
-            self.progressbar.setValue(0)
-            self.toggle_serial_interface(False)
-            self.terminal_msg(
-                f'Передача данных в диапазоне {freq_list[0]} - '
-                f'{freq_list[-1]} с шагом '
-                f'{self.step_spinbox.value()}'
-            )
-
-            factory_number = self.fnumber_lineedit.text()
-            device_model_title = self.devicemodel_combobox.currentText()
-            username = settings.OPERATOR
-            self.create_tab(
-                factory_number=factory_number,
-                device_model_title=device_model_title,
-                username=username,
-                )
-            self.plottab.update_timer.start()
-            self.serial_manager.start_data_transfer(freq_list)
+            self.start_transfer()
         else:
-            self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
-            self.toggle_serial_interface(True)
-            self.terminal_msg('Передача данных завершена')
-            self.serial_manager.stop_data_transfer()
-            self.plottab.update_timer.stop()
+            self.stop_transfer()
+
+    def start_transfer(self):
+        """Начало передачи данных."""
+        self.startstop_button.setIcon(QtGui.QIcon('icons/stop.png'))
+        freq_list = self.get_freq_list()
+        self.progressbar.setMaximum(len(freq_list))
+        self.progressbar.setValue(0)
+        self.toggle_serial_interface(False)
+        self.terminal_msg(
+            f'Передача данных в диапазоне {freq_list[0]} - '
+            f'{freq_list[-1]} с шагом '
+            f'{self.step_spinbox.value()}'
+        )
+
+        factory_number = self.fnumber_lineedit.text()
+        device_model_title = self.devicemodel_combobox.currentText()
+        username = settings.OPERATOR
+        self.create_tab(
+            factory_number=factory_number,
+            device_model_title=device_model_title,
+            username=username,
+            )
+        self.serial_manager.start_data_transfer(freq_list)
+
+    def stop_transfer(self):
+        """Остановка передачи данных."""
+        self.startstop_button.setIcon(QtGui.QIcon('icons/start.png'))
+        self.toggle_serial_interface(True)
+        self.terminal_msg('Передача данных завершена')
+        self.serial_manager.stop_data_transfer()
+        self.plot_update_timer.stop()
+        # не красиво, попробовать переделать
+        try:
+            self.plot_update_timer.disconnect()
+        except TypeError:
+            pass
 
     def create_tab(self, factory_number: str, device_model_title: str, username: str):  # noqa
         """Создает новую вкладку QTabwidget и соответствующий объект с
@@ -680,33 +773,39 @@ class MainWindow(QMainWindow):
         COM-порта и методом объекта plottab."""
         date = datetime.now().strftime('%H:%M:%S')
         title = f'{date} - {factory_number}'
-        # add min and max
         self.plottab = PlotTab(
             self.tabwidget,
             factory_number,
             device_model_title,
             username,
             date,
-         )
-        try:
-            self.serial_manager.signal_send_point.disconnect()
-        except TypeError:
-            pass
+        )
+
         self.serial_manager.signal_send_point.connect(self.plottab.add_data)
+
+        self.plot_update_timer.setInterval(int(1000 / settings.FPS))
+        self.plot_update_timer.timeout.connect(lambda: self.plot_update_worker.draw(self.plottab))  # noqa
+        self.plot_update_timer.start()
+
         self.tabwidget.addTab(self.plottab.page, title)
         self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
-        page = self.plottab.page
-        self.storage[page] = self.plottab
+        self.storage[self.plottab.page] = self.plottab
 
     @pyqtSlot(int)
-    def delete_tab(self, index: int) -> bool:
+    def close_tab(self, index: int) -> bool:
         """Удаляет запись из локального хранилища. Поиск по вложенному
         виджету."""
         try:
             page = self.tabwidget.widget(index)
+            # Если закрыли рабочую вкладку, то останавливаем все процессы
+            if self.plottab.page == page:
+                transfer_status = self.serial_manager.get_transfer_status()
+                if transfer_status:
+                    self.serial_manager.toggle_transfer_status()
+                    self.stop_transfer()
             self.tabwidget.removeTab(index)
             del self.storage[page]
-            print(self.storage)
+            # print(self.storage)
             return True
         except KeyError:
             self.terminal_msg(
@@ -810,10 +909,14 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     def closeEvent(self, event):  # noqa
         """Закрываем дополнительные окна при закрытии основного."""
+        self.plot_update_thread.quit()
+        self.plot_update_thread.wait()
         if self.settings_window:
             self.settings_window.close()
         if self.table_window:
             self.table_window.close()
+        if self.upload_window:
+            self.upload_window.close()
 
     @pyqtSlot(str)
     def terminal_msg(self, message: str) -> None:

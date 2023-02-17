@@ -22,5 +22,5 @@ TIMER_DB_CHECK = 5000
 PG_TABLE = 'pg_table'
 SQLITE_TABLE = 'sqlite_table'
 
-INDEX_I = 1
+INDEX_I = 20000
 INDEX_U = 1

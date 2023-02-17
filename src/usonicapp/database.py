@@ -2,7 +2,7 @@ from datetime import datetime
 
 import constants as cts
 from config import settings
-from models import DeviceModel, Point, Record, User
+from models import Data, DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
@@ -262,7 +262,7 @@ class DataBase(QObject):
         """Создание таблиц и фикстур для базы данных."""
         with self.sqlite_db.bind_ctx([User, Record]):
             self.sqlite_db.connect()
-            self.sqlite_db.create_tables([User, DeviceModel, Record, Point])
+            self.sqlite_db.create_tables([User, DeviceModel, Record, Data])
             for username in cts.USERS:
                 User.get_or_create(username=username)
             for title in cts.DEVICE_MODELS:
