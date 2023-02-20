@@ -1,21 +1,23 @@
 import matplotlib.pyplot as plt
-import mplcyberpunk  # noqa
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PyQt6.QtCore import QObject, pyqtSlot
 from PyQt6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
+from qbstyles import mpl_style
 
-plt.style.use('cyberpunk')
+mpl_style(True)
 
 
 class MplCanvas(FigureCanvasQTAgg):
     """Класс описывающий настройки холста для графиков."""
     def __init__(self, parent=None):
+
         self.fig = Figure(figsize=(11, 9))
         self.fig.set_facecolor('#202124')
         self.axes_1 = self.fig.add_subplot(211)
         self.axes_2_1 = self.fig.add_subplot(212)
         self.axes_2_2 = self.axes_2_1.twinx()
+        self.axes_2_2.grid(False)
         self.fig.subplots_adjust(
             left=0.09,
             bottom=0.05,
@@ -37,6 +39,8 @@ class PlotTab(QObject):
             'title': device_model_title,
             'username': username,
             'date': date,
+            'comment': None,
+            'temporary': False,
             'data': {
                 'f': [],
                 'z': [],
@@ -73,7 +77,8 @@ class PlotTab(QObject):
         plt.ylim(-100, 100)
         self.canvas.axes_2_1.set_xlabel('Частота, Гц')
         self.canvas.axes_2_1.set_ylabel('Ток, мА.')
-        line_i = self.canvas.axes_2_1.plot([], [], label=u'$I$, Ма', zorder=-1)
+        line_i = self.canvas.axes_2_1.plot(
+            [], [], label=u'$I$, Ма', color='blue',  zorder=-1)
         line_ph = self.canvas.axes_2_2.plot(
             [], [], label=u'$\phi$, гр.', color='red', zorder=-1)  # noqa
         self.ref_i = line_i[0]

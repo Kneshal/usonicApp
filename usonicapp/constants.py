@@ -24,3 +24,13 @@ SQLITE_TABLE = 'sqlite_table'
 
 INDEX_I = 20000
 INDEX_U = 1
+
+USERS = [
+    'user_1',
+    'user_2'
+]
+
+DEVICE_MODELS = [
+    'title_1',
+    'title_2'
+]

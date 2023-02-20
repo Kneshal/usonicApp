@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 import constants as cts
@@ -5,6 +6,8 @@ from config import settings
 from models import Data, DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+
+basedir = os.path.dirname(__file__)
 
 
 class DataBase(QObject):
@@ -18,7 +21,7 @@ class DataBase(QObject):
             autoconnect=False,
         )
         self.sqlite_db = SqliteDatabase(
-            'db/usonicApp.db',
+            os.path.join(basedir, 'db/usonicApp.db'),
             autoconnect=False,
             pragmas={'foreign_keys': 1}
         )
@@ -30,6 +33,58 @@ class DataBase(QObject):
         self.db_check_timer.timeout.connect(self.check_db_status)
         self.check_db_status()
         self.db_check_timer.start()
+
+    def upload_record(self, db, record) -> bool:
+        """Загружает запись и связанные данные на сервер."""
+        if not self.connect_and_bind_models(
+            db,
+            [Record, User, DeviceModel, Data]
+        ):
+            return False
+
+        user = User.get_or_none(username=record.get('username'))
+        device_model = DeviceModel.get_or_none(title=record.get('title'))
+
+        validation = self.record_data_validation(
+            data=record,
+            user=user,
+            device_model=device_model
+        )
+        if validation is None:
+            return False
+
+        upload_record, created = Record.get_or_create(
+            device_model=device_model,
+            user=user,
+            factory_number=record.get('factory_number'),
+            comment=record.get('comment'),
+            date=record.get('date'),
+            temporary=record.get('temporary'),
+        )
+        if not created:
+            return False
+
+        data = record.get('data')
+        length = len(data.get('f'))
+        points = []
+        for i in range(length):
+            points.append(
+                Data(
+                    record=upload_record,
+                    freq=data.get('f')[i],
+                    z=data.get('z')[i],
+                    r=data.get('r')[i],
+                    x=data.get('x')[i],
+                    phi=data.get('ph')[i],
+                    i=data.get('i')[i],
+                    u=data.get('u')[i],
+                )
+            )
+        with db.atomic():
+            Data.bulk_create(points, batch_size=100)
+
+        self.close(db)
+        return True
 
     def init_pg_db(self) -> None:
         """Инициализация базы данных PostgreSql"""
@@ -59,18 +114,14 @@ class DataBase(QObject):
             print(error)
             return False
 
-    def close(self, db) -> None:
-        """Разрываем соединение с БД."""
-        db.close()
-
-    def get_device_model_title_by_fnumber(self, factory_number: str) -> str | None:  # noqa
+    def get_device_model_title_by_fnumber(self, factory_number: str):  # noqa  -> str | None
         """Возвращает название модели по указанной записи."""
         record = self.get_record(factory_number=factory_number)
         if record is None:
             return None
         return record.device_model.title
 
-    def get_record(self, db: PostgresqlDatabase | SqliteDatabase = None, id: int = None, factory_number: str = None) -> Record | None:  # noqa
+    def get_record(self, db = None, id: int = None, factory_number: str = None):  # noqa  -> Record | None
         """Возвращает запись с заданным id из указанной БД."""
         if db is None:
             db = self.get_ready_db()
@@ -94,7 +145,7 @@ class DataBase(QObject):
         return record
 
     @staticmethod
-    def record_data_validation(data, user, device_model) -> dict | None:
+    def record_data_validation(data, user, device_model):  # -> dict | None
         """Валидация входящих данных для записи."""
         username = data.get('username')
         factory_number = data.get('factory_number')
@@ -106,7 +157,7 @@ class DataBase(QObject):
             return None
         return data
 
-    def update_record(self, db: PostgresqlDatabase | SqliteDatabase, id: int, data: dict) -> bool:  # noqa
+    def update_record(self, db, id: int, data: dict) -> bool:  # noqa
         """Обновляем запись в заданной БД."""
         if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
             return False
@@ -160,7 +211,7 @@ class DataBase(QObject):
         query = (query
                  .where(Record.temporary == temporary)
                  .limit(settings.DISPLAY_RECORDS)
-                 .order_by(Record.date))
+                 .order_by(Record.date.desc()))
         # постараться избавиться от лишних return и использовать elif
         for record in query:
             factory_number = record.factory_number
@@ -268,3 +319,7 @@ class DataBase(QObject):
             for title in cts.DEVICE_MODELS:
                 DeviceModel.get_or_create(title=title)
             self.sqlite_db.close()
+
+    def close(self, db) -> None:
+        """Разрываем соединение с БД."""
+        db.close()

@@ -91,6 +91,7 @@ class Record(BaseModel):
         default=datetime.now,
         verbose_name='Заводской номер',
         help_text='Укажите заводской номер',
+        unique=True,
     )
     temporary = BooleanField(
         verbose_name='Тип записи',
@@ -103,6 +104,9 @@ class Record(BaseModel):
     #     indexes = (
     #         (('device_model', 'factory_number'), True),
     #     )
+
+    class Meta:
+        ordering = ['-date']
 
     def __str__(self):
         return f'{self.date} - {self.factory_number}'

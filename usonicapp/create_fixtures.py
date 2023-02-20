@@ -1,7 +1,7 @@
 # from decimal import Decimal
 
 from config import settings
-from models import (DeviceModel, FactoryNumber, Record, User,
+from models import (Data, DeviceModel, FactoryNumber, Record, User,
                     generate_factory_number)
 from peewee import PostgresqlDatabase, SqliteDatabase
 
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         pragmas={'foreign_keys': 1}
     )
     db_list = [pg_db, sqlite_db]
-    models = [User, Record, DeviceModel, FactoryNumber]
+    models = [Data, User, Record, DeviceModel, FactoryNumber]
     users = ['user_01', 'user_02', 'user_03']
     device_models = ['model_01', 'model_02', 'model_03']
 

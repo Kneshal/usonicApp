@@ -8,6 +8,8 @@ help_commands.txt
 .vscode/
 temp.py
 usonicApp.db
+install_project.ifp
+usonicapp_setup_x64.exe
 
 # C extensions
 *.so

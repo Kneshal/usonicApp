@@ -1,5 +1,7 @@
-from PyQt6 import QtGui
+import os
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QToolButton, QWidget
 
 
@@ -28,7 +30,9 @@ class EditToolButton(QWidget):
         layout.addWidget(self.edit_button)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.edit_button.setIcon(QtGui.QIcon('icons/edit.png'))
+        self.edit_button.setIcon(
+            QIcon(os.path.join(os.path.dirname(__file__), 'icons/edit.png'))
+        )
         self.edit_button.clicked.connect(
             lambda: edit_record_window.show_window(table, db, id)
         )
