@@ -25,13 +25,13 @@ class RawMeasuredValue:
 
 @dataclass
 class MeasuredValue:
-    calibration: float
-    z: float
-    r: float
-    x: float
-    ph: float
-    i: float
-    u: float
+    calibration: Decimal
+    z: Decimal
+    r: Decimal
+    x: Decimal
+    ph: Decimal
+    i: Decimal
+    u: Decimal
 
 
 def convert_bytes_to_decimal(value: bytes) -> Decimal:
@@ -216,11 +216,7 @@ class SerialPortManager(QObject):
                     else:
                         self.send_data()
                 elif command == cts.CALIBRATION:
-                    self.calibration = int.from_bytes(
-                        data[0:2],
-                        byteorder='little'
-                    )
-                    self.calibration /= 1000
+                    self.calibration = convert_bytes_to_decimal(data[0:2])/1000
                     self.send_data()
                 elif command == cts.VOLTAGE:
                     pass
@@ -228,7 +224,7 @@ class SerialPortManager(QObject):
                     print('Неизвестная команда.')
 
     @staticmethod
-    def calc_data(raw_values: RawMeasuredValue, calibration: int) -> dict[str, Any]:
+    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal) -> dict[str, Any]:
         """Расчет параметров на основе данных от COM-порта."""
         calibration = calibration / 100
 
@@ -242,11 +238,11 @@ class SerialPortManager(QObject):
         return asdict(
             MeasuredValue(
                 calibration=calibration,
-                z=round(Decimal(z), 2),
-                r=round(Decimal(r), 2),
-                x=round(Decimal(x), 2),
-                ph=round(Decimal(ph), 2),
-                i=round(Decimal(i), 8),
-                u=round(Decimal(u), 2),
+                z=Decimal(z).quantize(Decimal('.01')),
+                r=Decimal(r).quantize(Decimal('.01')),
+                x=Decimal(x).quantize(Decimal('.01')),
+                ph=Decimal(ph).quantize(Decimal('.01')),
+                i=Decimal(z).quantize(Decimal('.00000001')),
+                u=Decimal(u).quantize(Decimal('.01')),
             )
         )
