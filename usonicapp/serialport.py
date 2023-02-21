@@ -3,15 +3,14 @@ from __future__ import annotations
 import math
 import struct
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
 
-from PyQt5.QtCore import QIODevice, QObject, QTimer, pyqtSignal, pyqtSlot
-from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
-
 import constants as cts
 from config import settings
+from PyQt5.QtCore import QIODevice, QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
 
 @dataclass
@@ -22,6 +21,7 @@ class RawMeasuredValue:
     v_db_u: Decimal
     v_ref: Decimal
     v_i: Decimal
+
 
 @dataclass
 class MeasuredValue:
@@ -224,16 +224,16 @@ class SerialPortManager(QObject):
                     print('Неизвестная команда.')
 
     @staticmethod
-    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal) -> dict[str, Any]:
+    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal) -> dict[str, Any]:  # noqa
         """Расчет параметров на основе данных от COM-порта."""
         calibration = calibration / 100
 
         z = (calibration * pow(10, (((raw_values.v_db_u - raw_values.v_ref / 2) - (raw_values.v_db_i - raw_values.v_ref / 2)) / 600)))  # noqa
         ph = (raw_values.v_ph_i/10 - raw_values.v_ph_u/10)
-        r = z * math.cos(math.radians(ph))
-        x = z * math.sin(math.radians(ph))
+        r = z * Decimal(math.cos(math.radians(ph)))
+        x = z * Decimal(math.sin(math.radians(ph)))
         i = cts.INDEX_I * pow(10, ((raw_values.v_i - 2500) / 480))
-        u = cts.INDEX_U * pow(10, ((raw_values.v_db_u - (raw_values.v_ref / 2)) / 600))
+        u = cts.INDEX_U * pow(10, ((raw_values.v_db_u - (raw_values.v_ref / 2)) / 600))  # noqa
 
         return asdict(
             MeasuredValue(
@@ -242,7 +242,7 @@ class SerialPortManager(QObject):
                 r=Decimal(r).quantize(Decimal('.01')),
                 x=Decimal(x).quantize(Decimal('.01')),
                 ph=Decimal(ph).quantize(Decimal('.01')),
-                i=Decimal(z).quantize(Decimal('.00000001')),
+                i=Decimal(i).quantize(Decimal('.00000001')),
                 u=Decimal(u).quantize(Decimal('.01')),
             )
         )
