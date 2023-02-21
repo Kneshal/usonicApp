@@ -84,13 +84,13 @@ class Record(BaseModel):
         default=f'001.{datetime.now().year}-0001'
     )
     comment = TextField(
-        verbose_name='Заводской номер',
-        help_text='Укажите заводской номер',
+        verbose_name='Комментарий',
+        help_text='Укажите комментарий',
     )
     date = DateTimeField(
         default=datetime.now,
-        verbose_name='Заводской номер',
-        help_text='Укажите заводской номер',
+        verbose_name='Дата и время измерения',
+        help_text='Укажите дату и время измерения',
         unique=True,
     )
     temporary = BooleanField(
