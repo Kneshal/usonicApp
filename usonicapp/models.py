@@ -86,6 +86,7 @@ class Record(BaseModel):
     comment = TextField(
         verbose_name='Комментарий',
         help_text='Укажите комментарий',
+        # blank=True,
     )
     date = DateTimeField(
         default=datetime.now,

@@ -1,5 +1,7 @@
 import os
+from dataclasses import asdict
 from datetime import datetime
+from typing import Union
 
 import constants as cts
 import simplejson as json  # instead of import json
@@ -35,38 +37,16 @@ class DataBase(QObject):
         self.check_db_status()
         self.db_check_timer.start()
 
-    def upload_record(self, db, record) -> bool:
+    def upload_record(self, db, record, data) -> bool:
         """Загружает запись и связанные данные на сервер."""
-        if not self.connect_and_bind_models(
-            db, [Record, User, DeviceModel]
-        ):
+        if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
             return False
-
-        user = User.get_or_none(username=record.get('username'))
-        device_model = DeviceModel.get_or_none(title=record.get('title'))
-
-        validation = self.record_data_validation(
-            data=record,
-            user=user,
-            device_model=device_model
-        )
-        if validation is None:
-            return False
-
-        data = record.get('data')
-        encode_data = json.dumps(data, use_decimal=True)
+        # add validation
+        encode_data = json.dumps(asdict(data), use_decimal=True)
+        record.data = encode_data
+        result = record.save()
         # decode_data = json.loads(encode_data, use_decimal=True)
-
-        upload_record, created = Record.get_or_create(
-            device_model=device_model,
-            user=user,
-            factory_number=record.get('factory_number'),
-            comment=record.get('comment'),
-            date=record.get('date'),
-            temporary=record.get('temporary'),
-            data=encode_data,
-        )
-        if not created:
+        if not result:
             return False
         self.close(db)
         return True
@@ -221,6 +201,26 @@ class DataBase(QObject):
             return True
         except OperationalError:
             return False
+
+    def get_model_by_title(self, title) -> Union[DeviceModel, None]:
+        """Возвращает объект DeviceModel по названию аппарата. Если в БД
+        его нет, возвращает None."""
+        db = self.get_ready_db()
+        if not self.connect_and_bind_models(db, [DeviceModel]):
+            return None
+        device_model = DeviceModel.get_or_none(title=title)
+        db.close()
+        return device_model
+
+    def get_user_by_username(self, username) -> Union[User, None]:
+        """Возвращает объект DeviceModel по названию аппарата. Если в БД
+        его нет, возвращает None."""
+        db = self.get_ready_db()
+        if not self.connect_and_bind_models(db, [User]):
+            return None
+        user = User.get_or_none(username=username)
+        db.close()
+        return user
 
     def get_models_pg(self) -> list:
         """Возвращает список всех моделей аппаратов в бд PostgreSQL."""

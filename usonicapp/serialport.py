@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import struct
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -26,12 +26,34 @@ class RawMeasuredValue:
 @dataclass
 class MeasuredValue:
     calibration: Decimal
+    f: Decimal
     z: Decimal
     r: Decimal
     x: Decimal
     ph: Decimal
     i: Decimal
     u: Decimal
+
+
+@dataclass
+class MeasuredValues:
+    f: list = field(default_factory=list)
+    z: list = field(default_factory=list)
+    r: list = field(default_factory=list)
+    x: list = field(default_factory=list)
+    ph: list = field(default_factory=list)
+    i: list = field(default_factory=list)
+    u: list = field(default_factory=list)
+
+    def add_value(self, value: MeasuredValue) -> None:
+        """Добавляем новый набор значений к текущим спискам."""
+        self.f.append(value.f)
+        self.z.append(value.z)
+        self.r.append(value.r)
+        self.x.append(value.x)
+        self.ph.append(value.ph)
+        self.i.append(value.i)
+        self.u.append(value.u)
 
 
 def convert_bytes_to_decimal(value: bytes) -> Decimal:
@@ -41,7 +63,7 @@ def convert_bytes_to_decimal(value: bytes) -> Decimal:
 class SerialPortManager(QObject):
     """Вспомогательный класс для работы с COM портом."""
     signal_port_checked = pyqtSignal(bool)
-    signal_send_point = pyqtSignal(dict)
+    signal_send_data = pyqtSignal(MeasuredValue)
     signal_calibration_response = pyqtSignal()
     signal_stop_data_transfer = pyqtSignal()
     signal_transfer_progress_change = pyqtSignal(int)
@@ -204,13 +226,16 @@ class SerialPortManager(QObject):
                         v_ref=convert_bytes_to_decimal(data[8:10]),
                         v_i=convert_bytes_to_decimal(data[10:12]),
                     )
-
-                    result = self.calc_data(received_data, self.calibration)
-                    result['f'] = self.current_freq / 100
+                    f = self.current_freq / 100
+                    measured_value = self.calc_data(
+                        raw_values=received_data,
+                        calibration=self.calibration,
+                        f=f,
+                    )
                     self.signal_transfer_progress_change.emit(
                         len(self.freq_list)
                     )
-                    self.signal_send_point.emit(result)
+                    self.signal_send_data.emit(measured_value)
                     if not self.freq_list:
                         self.signal_stop_data_transfer.emit()
                     else:
@@ -224,7 +249,7 @@ class SerialPortManager(QObject):
                     print('Неизвестная команда.')
 
     @staticmethod
-    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal) -> dict[str, Any]:  # noqa
+    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal, f: int) -> dict[str, Any]:  # noqa
         """Расчет параметров на основе данных от COM-порта."""
         calibration = calibration / 100
 
@@ -235,14 +260,13 @@ class SerialPortManager(QObject):
         i = cts.INDEX_I * pow(10, ((raw_values.v_i - 2500) / 480))
         u = cts.INDEX_U * pow(10, ((raw_values.v_db_u - (raw_values.v_ref / 2)) / 600))  # noqa
 
-        return asdict(
-            MeasuredValue(
-                calibration=calibration,
-                z=Decimal(z).quantize(Decimal('.01')),
-                r=Decimal(r).quantize(Decimal('.01')),
-                x=Decimal(x).quantize(Decimal('.01')),
-                ph=Decimal(ph).quantize(Decimal('.01')),
-                i=Decimal(i).quantize(Decimal('.00000001')),
-                u=Decimal(u).quantize(Decimal('.01')),
-            )
+        return MeasuredValue(
+            calibration=calibration,
+            f=Decimal(f).quantize(Decimal('.01')),
+            z=Decimal(z).quantize(Decimal('.01')),
+            r=Decimal(r).quantize(Decimal('.01')),
+            x=Decimal(x).quantize(Decimal('.01')),
+            ph=Decimal(ph).quantize(Decimal('.01')),
+            i=Decimal(i).quantize(Decimal('.00000001')),
+            u=Decimal(u).quantize(Decimal('.01')),
         )

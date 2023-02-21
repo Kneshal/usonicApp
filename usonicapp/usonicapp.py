@@ -19,7 +19,7 @@ from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
 from PyQt5.QtGui import QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QWidget)
-from serialport import SerialPortManager
+from serialport import MeasuredValues, SerialPortManager
 from widgets import CellCheckbox, EditToolButton
 
 basedir = os.path.dirname(__file__)
@@ -41,8 +41,6 @@ class UploadWindow(QWidget):
 
     def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.record = None
-        self.temporary = False
         self.db = db
         self.init_gui()
         self.init_signals()
@@ -58,30 +56,30 @@ class UploadWindow(QWidget):
         self.upload_button.clicked.connect(self.upload_button_clicked)
 
     @pyqtSlot(dict)
-    def update(self, record: dict, pg_db_status: bool, temporary: bool) -> None:  # noqa
+    def update(self, record: dict, data: MeasuredValues, pg_db_status: bool) -> None:  # noqa
         """Заполнение виджетов."""
+        self.record = record
+        self.data = data
         titles: list = self.db.get_models_pg()
         self.title_combobox.clear()
         self.title_combobox.addItems(titles)
-        index: int = self.title_combobox.findText(record.get('title'))
+        index: int = self.title_combobox.findText(
+            self.record.device_model.title)
         self.title_combobox.setCurrentIndex(index)
 
         self.comment_textedit.clear()
-        # print(pg_db_status)
-        self.temporary = temporary
-        if self.temporary:
+        if self.record.temporary:
             self.pg_radiobutton.setVisible(False)
             self.sqlite_radiobutton.setChecked(True)
             self.fnumber_lineedit.setVisible(False)
             self.label_2.setVisible(False)
         else:
-            self.fnumber_lineedit.setText(record.get('factory_number'))
+            self.fnumber_lineedit.setText(self.record.factory_number)
             self.pg_radiobutton.setEnabled(pg_db_status)
             if pg_db_status:
                 self.pg_radiobutton.setChecked(True)
             else:
                 self.sqlite_radiobutton.setChecked(True)
-            self.record = record
 
     def upload_button_clicked(self) -> None:
         """Нажатие кнопки загрузки записи  в БД."""
@@ -90,16 +88,16 @@ class UploadWindow(QWidget):
             db = self.db.pg_db
 
         factory_number = self.fnumber_lineedit.text()
-        if self.temporary:
+        if self.record.temporary:
             factory_number = generate_factory_number()
 
         title = self.title_combobox.currentText()
-        comment = self.comment_textedit.toPlainText()
-        self.record['factory_number'] = factory_number
-        self.record['title'] = title
-        self.record['comment'] = comment
-        self.record['temporary'] = self.temporary
-        result = self.db.upload_record(db, self.record)
+        device_model = self.db.get_model_by_title(title)
+        self.record.factory_number = factory_number
+        self.record.device_model = device_model
+        self.record.comment = self.comment_textedit.toPlainText()
+
+        result = self.db.upload_record(db, self.record, self.data)
         if result:
             message = 'Запись успешно загружена в БД.'
         else:
@@ -740,19 +738,17 @@ class MainWindow(QMainWindow):
             date_str = record.date.strftime('%H:%M:%S')
             title = f'{date_str} - {record.factory_number}'
             self.plottab = PlotTab(
-                self.tabwidget,
-                record.factory_number,
-                record.device_model.title,
-                record.user.username,
-                record.date,
+                tabwidget=self.tabwidget,
+                record=record,
             )
-            data = json.loads(record.data.tobytes(), use_decimal=True)
+            data = MeasuredValues(
+                **json.loads(record.data.tobytes(), use_decimal=True)
+            )
             self.plottab.set_data(data)
             self.plot_update_worker.draw(self.plottab)
             self.tabwidget.addTab(self.plottab.page, title)
             self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
             self.storage[self.plottab.page] = self.plottab
-            print(self.storage)
 
     @pyqtSlot(bool)
     def toggle_serial_interface(self, status: bool) -> None:
@@ -802,7 +798,7 @@ class MainWindow(QMainWindow):
             self.upload_window.hide()
             return
         pg_db_status = self.db.check_pg_db()
-        self.upload_window.update(plottab.record, pg_db_status, self.temporary)
+        self.upload_window.update(plottab.record, plottab.data, pg_db_status)
         self.upload_window.show()
 
     @pyqtSlot()
@@ -855,24 +851,28 @@ class MainWindow(QMainWindow):
         """Создает новую вкладку QTabwidget и соответствующий объект с
         графиками. Устанавливает связь между полученрием данных от
         COM-порта и методом объекта plottab."""
-        date = datetime.now()
-        date_str = date.strftime('%H:%M:%S')
-        title = f'{date_str} - {factory_number}'
-        self.plottab = PlotTab(
-            self.tabwidget,
-            factory_number,
-            device_model_title,
-            username,
-            date,
+        device_model = self.db.get_model_by_title(device_model_title)
+        user = self.db.get_user_by_username(username)
+        record = Record(
+            device_model=device_model,
+            user=user,
+            factory_number=factory_number,
+            temporary=self.temporary,
         )
 
-        self.serial_manager.signal_send_point.connect(self.plottab.add_data)
+        self.plottab = PlotTab(
+            tabwidget=self.tabwidget,
+            record=record,
+        )
 
+        self.serial_manager.signal_send_data.connect(self.plottab.get_data)
         self.plot_update_timer.setInterval(int(1000 / settings.FPS))
         self.plot_update_timer.timeout.connect(lambda: self.plot_update_worker.draw(self.plottab))  # noqa
         self.plot_update_timer.start()
 
-        self.tabwidget.addTab(self.plottab.page, title)
+        date_str = record.date.strftime('%H:%M:%S')
+        tab_title = f'{date_str} - {factory_number}'
+        self.tabwidget.addTab(self.plottab.page, tab_title)
         self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
         self.storage[self.plottab.page] = self.plottab
 

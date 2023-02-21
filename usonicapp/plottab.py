@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from models import Record
 from PyQt5.QtCore import QObject, pyqtSlot
 from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from qbstyles import mpl_style
+from serialport import MeasuredValue, MeasuredValues
 
 mpl_style(True)
 
@@ -11,7 +13,6 @@ mpl_style(True)
 class MplCanvas(FigureCanvasQTAgg):
     """Класс описывающий настройки холста для графиков."""
     def __init__(self, parent=None):
-
         self.fig = Figure(figsize=(11, 9))
         self.fig.set_facecolor('#202124')
         self.axes_1 = self.fig.add_subplot(211)
@@ -31,26 +32,13 @@ class MplCanvas(FigureCanvasQTAgg):
 
 class PlotTab(QObject):
     """Класс описывающий вкладку QTabwidget и графики."""
-    def __init__(self, tabwidget: QTabWidget, factory_number=None, device_model_title=None, username=None, date=None) -> None:  # noqa
+    def __init__(self, tabwidget: QTabWidget, record) -> None:  # noqa
         super().__init__()
         self.tabwidget: QTabWidget = tabwidget
-        self.record: dict = {
-            'factory_number': factory_number,
-            'title': device_model_title,
-            'username': username,
-            'date': date,
-            'comment': None,
-            'temporary': False,
-            'data': {
-                'f': [],
-                'z': [],
-                'r': [],
-                'x': [],
-                'ph': [],
-                'i': [],
-                'u': [],
-            }
-        }
+
+        self.record: Record = record
+        self.data = MeasuredValues()
+
         self.init_widgets()
         self.init_plots()
 
@@ -90,23 +78,14 @@ class PlotTab(QObject):
         self.canvas.axes_2_1.legend(loc='upper left')
         self.canvas.axes_2_2.legend(loc='upper right')
 
-    def drow(self, data) -> None:
-        """Отрисовка графиков"""
-        pass
-
-    @pyqtSlot(dict)
-    def add_data(self, data) -> None:
+    @pyqtSlot(MeasuredValue)
+    def get_data(self, data: MeasuredValue) -> None:
         """Добавление данных в локальное хранилище."""
-        options = ['f', 'z', 'r', 'x', 'ph', 'i', 'u']
-        for option in options:
-            self.record['data'][option].append(data[option])
+        self.data.add_value(data)
 
-    @pyqtSlot(dict)
-    def set_data(self, data) -> None:
+    def set_data(self, data: MeasuredValue) -> None:
         """Добавление данных в локальное хранилище."""
-        options = ['f', 'z', 'r', 'x', 'ph', 'i', 'u']
-        for option in options:
-            self.record['data'][option] = data[option]
+        self.data = data
 
 
 class PlotUpdateWorker(QObject):
@@ -117,12 +96,12 @@ class PlotUpdateWorker(QObject):
     @pyqtSlot(PlotTab)
     def draw(self, plottab: PlotTab) -> None:
         """Обновление графиков."""
-        data_freq = plottab.record['data']['f']
-        data_z = plottab.record['data']['z']
-        data_r = plottab.record['data']['r']
-        data_x = plottab.record['data']['x']
-        data_i = plottab.record['data']['i']
-        data_ph = plottab.record['data']['ph']
+        data_freq = plottab.data.f
+        data_z = plottab.data.z
+        data_r = plottab.data.r
+        data_x = plottab.data.x
+        data_i = plottab.data.i
+        data_ph = plottab.data.ph
 
         plottab.ref_z.set_ydata(data_z)
         plottab.ref_z.set_xdata(data_freq)
