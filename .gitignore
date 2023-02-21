@@ -141,3 +141,6 @@ dmypy.json
 
 # Ignore dynaconf secret files
 .secrets.*
+
+.idea/
+*.db

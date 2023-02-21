@@ -1,12 +1,41 @@
+from __future__ import annotations
+
 import math
 import struct
 from collections import defaultdict
+from dataclasses import dataclass, asdict
 from decimal import Decimal
+from typing import Any
+
+from PyQt5.QtCore import QIODevice, QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
 import constants as cts
 from config import settings
-from PyQt5.QtCore import QIODevice, QObject, QTimer, pyqtSignal, pyqtSlot
-from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
+
+
+@dataclass
+class RawMeasuredValue:
+    v_ph_i: Decimal
+    v_db_i: Decimal
+    v_ph_u: Decimal
+    v_db_u: Decimal
+    v_ref: Decimal
+    v_i: Decimal
+
+@dataclass
+class MeasuredValue:
+    calibration: float
+    z: float
+    r: float
+    x: float
+    ph: float
+    i: float
+    u: float
+
+
+def convert_bytes_to_decimal(value: bytes) -> Decimal:
+    return Decimal(int.from_bytes(value, byteorder='little'))
 
 
 class SerialPortManager(QObject):
@@ -48,14 +77,12 @@ class SerialPortManager(QObject):
         self.data_receive_timer.timeout.connect(self.reconnection)
 
     @staticmethod
-    def get_serial_ports_list() -> list:
+    def get_available_port_names() -> list[str]:
         """Возвращает список активных COM-портов."""
-        info_list = QSerialPortInfo()
-        serial_list = info_list.availablePorts()
-        return [port.portName() for port in serial_list]
+        return [port.portName() for port in QSerialPortInfo().availablePorts()]
 
     @staticmethod
-    def create_tasks(data) -> list:
+    def create_tasks(data) -> dict:
         """Обработка входящих данных."""
         tasks = defaultdict(list)
         for command, length in cts.COMMANDS.items():
@@ -109,17 +136,18 @@ class SerialPortManager(QObject):
         """Попытка повторной отправки данных, если COM-порт не
         отвечает."""
         if self.attempts_number < cts.ATTEMPTS_MAXIMUM:
+            self.attempts_number += 1
             print(
                 'Устройство не отвечает, попытка переподключения '
-                f'- {self.attempts_number + 1}.'
+                f'- {self.attempts_number}.'
             )
-            self.attempts_number += 1
             self.send_data(False)
-        else:
-            print('Устройство не отвечает. Завершение передачи данных')
-            self.attempts_number = 0
-            self.data_receive_timer.stop()
-            self.stop_data_transfer()
+            return
+
+        print('Устройство не отвечает. Завершение передачи данных')
+        self.attempts_number = 0
+        self.data_receive_timer.stop()
+        self.stop_data_transfer()
 
     def start_data_transfer(self, freq_list) -> None:
         """Начало процесса передачи данных."""
@@ -151,7 +179,7 @@ class SerialPortManager(QObject):
 
     # Возможно использовать декоратор, но проверить тип посылки
     def read_data(self):
-        """Слот, отвечающий за чтение и обработку поступюащих даееых."""
+        """Слот, отвечающий за чтение и обработку поступающих данных."""
         rdata = self.serial.readAll()
         tasks = self.create_tasks(rdata.data())
         for command, data_list in tasks.items():
@@ -167,14 +195,16 @@ class SerialPortManager(QObject):
                 elif ((command == cts.DATA) and (self.transfer_status)):
                     self.attempts_number = 0
                     self.data_receive_timer.stop()
-                    received_data = {
-                        'Vphl': int.from_bytes(data[0:2], byteorder='little'),
-                        'VdBI': int.from_bytes(data[2:4], byteorder='little'),
-                        'VphU': int.from_bytes(data[4:6], byteorder='little'),
-                        'VdBU': int.from_bytes(data[6:8], byteorder='little'),
-                        'Vref': int.from_bytes(data[8:10], byteorder='little'),
-                        'VI': int.from_bytes(data[10:12], byteorder='little'),
-                    }
+
+                    received_data = RawMeasuredValue(
+                        v_ph_i=convert_bytes_to_decimal(data[0:2]),
+                        v_db_i=convert_bytes_to_decimal(data[2:4]),
+                        v_ph_u=convert_bytes_to_decimal(data[4:6]),
+                        v_db_u=convert_bytes_to_decimal(data[6:8]),
+                        v_ref=convert_bytes_to_decimal(data[8:10]),
+                        v_i=convert_bytes_to_decimal(data[10:12]),
+                    )
+
                     result = self.calc_data(received_data, self.calibration)
                     result['f'] = self.current_freq / 100
                     self.signal_transfer_progress_change.emit(
@@ -190,7 +220,7 @@ class SerialPortManager(QObject):
                         data[0:2],
                         byteorder='little'
                     )
-                    self.calibration = self.calibration / 1000
+                    self.calibration /= 1000
                     self.send_data()
                 elif command == cts.VOLTAGE:
                     pass
@@ -198,31 +228,25 @@ class SerialPortManager(QObject):
                     print('Неизвестная команда.')
 
     @staticmethod
-    def calc_data(data, calibration) -> dict:
+    def calc_data(raw_values: RawMeasuredValue, calibration: int) -> dict[str, Any]:
         """Расчет параметров на основе данных от COM-порта."""
-        vphi: Decimal = data.get('Vphl')
-        vdbi: Decimal = data.get('VdBI')
-        vphu: Decimal = data.get('VphU')
-        vdbu: Decimal = data.get('VdBU')
-        vref: Decimal = data.get('Vref')
-        vi: Decimal = data.get('VI')
         calibration = calibration / 100
 
-        z = (calibration * pow(10, (((vdbu - vref / 2) - (vdbi - vref / 2)) / 600)))  # noqa
-        ph = (vphi/10 - vphu/10)
+        z = (calibration * pow(10, (((raw_values.v_db_u - raw_values.v_ref / 2) - (raw_values.v_db_i - raw_values.v_ref / 2)) / 600)))  # noqa
+        ph = (raw_values.v_ph_i/10 - raw_values.v_ph_u/10)
         r = z * math.cos(math.radians(ph))
         x = z * math.sin(math.radians(ph))
-        i = cts.INDEX_I * pow(10, ((vi - 2500) / 480))
-        u = cts.INDEX_U * pow(10, ((vdbu - (vref / 2)) / 600))
+        i = cts.INDEX_I * pow(10, ((raw_values.v_i - 2500) / 480))
+        u = cts.INDEX_U * pow(10, ((raw_values.v_db_u - (raw_values.v_ref / 2)) / 600))
 
-        keys = ('calibration', 'z', 'r', 'x', 'ph', 'i', 'u')
-        values = (
-            calibration,
-            round(Decimal(z), 2),
-            round(Decimal(r), 2),
-            round(Decimal(x), 2),
-            round(Decimal(ph), 2),
-            round(Decimal(i), 8),
-            round(Decimal(u), 2),
+        return asdict(
+            MeasuredValue(
+                calibration=calibration,
+                z=round(Decimal(z), 2),
+                r=round(Decimal(r), 2),
+                x=round(Decimal(x), 2),
+                ph=round(Decimal(ph), 2),
+                i=round(Decimal(i), 8),
+                u=round(Decimal(u), 2),
+            )
         )
-        return dict(zip(keys, values))
