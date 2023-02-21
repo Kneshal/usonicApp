@@ -949,7 +949,7 @@ class MainWindow(QMainWindow):
             self.settings_window.hide()
             return
         users: list = self.db.get_users_pg()
-        serial_ports: list = self.serial_manager.get_serial_ports_list()
+        serial_ports: list = self.serial_manager.get_available_port_names()
         self.settings_window.update(users, serial_ports)
         self.settings_window.show()
 
