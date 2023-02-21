@@ -2,8 +2,9 @@ import os
 from datetime import datetime
 
 import constants as cts
+import simplejson as json  # instead of import json
 from config import settings
-from models import Data, DeviceModel, Record, User
+from models import DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
@@ -37,8 +38,7 @@ class DataBase(QObject):
     def upload_record(self, db, record) -> bool:
         """Загружает запись и связанные данные на сервер."""
         if not self.connect_and_bind_models(
-            db,
-            [Record, User, DeviceModel, Data]
+            db, [Record, User, DeviceModel]
         ):
             return False
 
@@ -53,6 +53,10 @@ class DataBase(QObject):
         if validation is None:
             return False
 
+        data = record.get('data')
+        encode_data = json.dumps(data, use_decimal=True)
+        # decode_data = json.loads(encode_data, use_decimal=True)
+
         upload_record, created = Record.get_or_create(
             device_model=device_model,
             user=user,
@@ -60,29 +64,10 @@ class DataBase(QObject):
             comment=record.get('comment'),
             date=record.get('date'),
             temporary=record.get('temporary'),
+            data=encode_data,
         )
         if not created:
             return False
-
-        data = record.get('data')
-        length = len(data.get('f'))
-        points = []
-        for i in range(length):
-            points.append(
-                Data(
-                    record=upload_record,
-                    freq=data.get('f')[i],
-                    z=data.get('z')[i],
-                    r=data.get('r')[i],
-                    x=data.get('x')[i],
-                    phi=data.get('ph')[i],
-                    i=data.get('i')[i],
-                    u=data.get('u')[i],
-                )
-            )
-        with db.atomic():
-            Data.bulk_create(points, batch_size=100)
-
         self.close(db)
         return True
 
@@ -313,7 +298,7 @@ class DataBase(QObject):
         """Создание таблиц и фикстур для базы данных."""
         with self.sqlite_db.bind_ctx([User, Record]):
             self.sqlite_db.connect()
-            self.sqlite_db.create_tables([User, DeviceModel, Record, Data])
+            self.sqlite_db.create_tables([User, DeviceModel, Record])
             for username in cts.USERS:
                 User.get_or_create(username=username)
             for title in cts.DEVICE_MODELS:

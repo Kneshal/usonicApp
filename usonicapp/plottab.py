@@ -90,13 +90,23 @@ class PlotTab(QObject):
         self.canvas.axes_2_1.legend(loc='upper left')
         self.canvas.axes_2_2.legend(loc='upper right')
 
+    def drow(self, data) -> None:
+        """Отрисовка графиков"""
+        pass
+
     @pyqtSlot(dict)
     def add_data(self, data) -> None:
         """Добавление данных в локальное хранилище."""
-        # print(data)
         options = ['f', 'z', 'r', 'x', 'ph', 'i', 'u']
         for option in options:
             self.record['data'][option].append(data[option])
+
+    @pyqtSlot(dict)
+    def set_data(self, data) -> None:
+        """Добавление данных в локальное хранилище."""
+        options = ['f', 'z', 'r', 'x', 'ph', 'i', 'u']
+        for option in options:
+            self.record['data'][option] = data[option]
 
 
 class PlotUpdateWorker(QObject):

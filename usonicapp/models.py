@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from peewee import (BooleanField, CharField, DateTimeField, DecimalField,
+from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     ForeignKeyField, Model, TextField)
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 
@@ -98,59 +98,14 @@ class Record(BaseModel):
         help_text='Укажите тип записи',
         default=False,
     )
-    # Добавить расчетные параметры
-    # class Meta:
-    #     constraints = [SQL('UNIQUE (device_model, factory_number)')]
-    #     indexes = (
-    #         (('device_model', 'factory_number'), True),
-    #     )
+    data = BlobField(
+        verbose_name='Массив данных',
+        help_text='подключите массив данных',
+        null=True,
+    )
 
     class Meta:
         ordering = ['-date']
 
     def __str__(self):
         return f'{self.date} - {self.factory_number}'
-
-
-class Data(BaseModel):
-    record = ForeignKeyField(
-        Record,
-        verbose_name='Запись об измерении',
-        help_text='Укажите запись об измерении',
-        backref='points',
-        on_delete='CASCADE',
-    )
-    freq = DecimalField(
-        verbose_name='Частота',
-        help_text='Укажите частоту',
-    )
-    z = DecimalField(
-        verbose_name='Полное сопротивление',
-        help_text='Укажите полное сопротивление',
-    )
-    r = DecimalField(
-        verbose_name='Активное сопротивление',
-        help_text='Укажите активное сопротивление',
-    )
-    x = DecimalField(
-        verbose_name='Реактивное сопротивление',
-        help_text='Укажите реактивное сопротивление',
-    )
-    phi = DecimalField(
-        verbose_name='Фаза',
-        help_text='Укажите фазу',
-    )
-    i = DecimalField(
-        verbose_name='Ток',
-        help_text='Укажите ток',
-    )
-    u = DecimalField(
-        verbose_name='Напряжение',
-        help_text='Укажите напряжение',
-    )
-
-    def __str__(self):
-        return f'{self.record} --- {self.freq}'
-
-    class Meta:
-        ordering = ['freq']

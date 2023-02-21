@@ -6,6 +6,7 @@ from decimal import Decimal
 import constants as cts
 import numpy as np
 import qdarktheme
+import simplejson as json
 from config import settings
 from database import DataBase
 from dynaconf import loaders
@@ -262,6 +263,8 @@ class FilterWindow(QWidget):
 
 class TableWindow(QWidget):
     terminal_signal: pyqtSignal = pyqtSignal(str)
+    donwload_records_signal: pyqtSignal = pyqtSignal(list)
+
     """Таблица базы данных программы."""
     def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -301,7 +304,7 @@ class TableWindow(QWidget):
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
-        self.open_button.clicked.connect(self.open_button_clicked)
+        self.open_button.clicked.connect(self.download_button_clicked)
         self.delete_button.clicked.connect(self.delete_button_clicked)
         self.update_button.clicked.connect(self.update_button_clicked)
         self.filter_button.clicked.connect(self.filter_button_clicked)
@@ -486,13 +489,17 @@ class TableWindow(QWidget):
             self.selected_records[table_name].remove(record_id)
 
     @pyqtSlot()
-    def open_button_clicked(self) -> None:
+    def download_button_clicked(self) -> None:
         """Слот нажатия кнопки выгрузки данных."""
-        list_id: list = self.get_current_selected_records()
-        if not list_id:
+        table_name: str = self.get_current_table_name()
+        db = self.get_db_by_name(table_name)
+        selected_id = self.selected_records.get(table_name)
+        if not selected_id:
             return
-        print('Open button is clicked!')
-        print('Выгружаем данные', list_id)
+        records = []
+        for id in selected_id:
+            records.append(self.db.get_record(db, id))
+        self.donwload_records_signal.emit(records)
         self.hide()
 
     @pyqtSlot()
@@ -706,6 +713,8 @@ class MainWindow(QMainWindow):
         self.settings_window.terminal_signal.connect(self.terminal_msg)
         # Окно базы данных
         self.table_window.terminal_signal.connect(self.terminal_msg)
+        self.table_window.donwload_records_signal.connect(
+            self.download_records)
         # Окно редактирования записи
         self.table_window.edit_record_window.terminal_signal.connect(
             self.terminal_msg)
@@ -723,6 +732,27 @@ class MainWindow(QMainWindow):
         self.tabwidget.currentChanged.connect(self.toggle_upload_button_status)
         # Окно загрузки
         self.upload_window.terminal_signal.connect(self.terminal_msg)
+
+    @pyqtSlot(list)
+    def download_records(self, records) -> None:
+        """Выгружает записи из БД, создает вкладки и строит графики."""
+        for record in records:
+            date_str = record.date.strftime('%H:%M:%S')
+            title = f'{date_str} - {record.factory_number}'
+            self.plottab = PlotTab(
+                self.tabwidget,
+                record.factory_number,
+                record.device_model.title,
+                record.user.username,
+                record.date,
+            )
+            data = json.loads(record.data.tobytes(), use_decimal=True)
+            self.plottab.set_data(data)
+            self.plot_update_worker.draw(self.plottab)
+            self.tabwidget.addTab(self.plottab.page, title)
+            self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
+            self.storage[self.plottab.page] = self.plottab
+            print(self.storage)
 
     @pyqtSlot(bool)
     def toggle_serial_interface(self, status: bool) -> None:
