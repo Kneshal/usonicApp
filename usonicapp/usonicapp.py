@@ -5,18 +5,18 @@ from decimal import Decimal
 
 import constants as cts
 import numpy as np
-# import qdarktheme
+import qdarktheme
 from config import settings
 from database import DataBase
 from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import Record, generate_factory_number
 from plottab import PlotTab, PlotUpdateWorker
-from PyQt6 import uic
-from PyQt6.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
+from PyQt5 import uic
+from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
                           pyqtSignal, pyqtSlot)
-from PyQt6.QtGui import QColor, QIcon, QPixmap
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
+from PyQt5.QtGui import QColor, QIcon, QPixmap
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QWidget)
 from serialport import SerialPortManager
 from widgets import CellCheckbox, EditToolButton
@@ -38,7 +38,7 @@ class UploadWindow(QWidget):
     """Окно загрузки данных на сервера."""
     terminal_signal: pyqtSignal = pyqtSignal(str)
 
-    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.record = None
         self.temporary = False
@@ -112,7 +112,7 @@ class EditRecordWindow(QWidget):
     edit_signal: pyqtSignal = pyqtSignal(QTableWidget)
     terminal_signal: pyqtSignal = pyqtSignal(str)
 
-    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.db: DataBase = db
         self.record: Record = Record()
@@ -132,7 +132,7 @@ class EditRecordWindow(QWidget):
         self.save_button.clicked.connect(self.save_button_clicked)
         self.cancel_button.clicked.connect(self.cancel_button_clicked)
 
-    def show_window(self, table: QTableWidget, db, id: str) -> None:  # noqa
+    def show_window(self, table: QTableWidget, db, id: str) -> None:
         """Делает окно видимым и заполняет виджеты данными
         указанной записи."""
         self.table = table
@@ -196,7 +196,7 @@ class FilterWindow(QWidget):
     """Окно фильтрация таблицы БД."""
     apply_filter_signal: pyqtSignal = pyqtSignal()
 
-    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.db: DataBase = db
         self.init_gui()
@@ -263,7 +263,7 @@ class FilterWindow(QWidget):
 class TableWindow(QWidget):
     terminal_signal: pyqtSignal = pyqtSignal(str)
     """Таблица базы данных программы."""
-    def __init__(self, db: DataBase, *args, **kwargs) -> None:  # noqa
+    def __init__(self, db: DataBase, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.db: DataBase = db
         self.selected_records: dict = {
@@ -341,7 +341,7 @@ class TableWindow(QWidget):
         table_name: str = self.get_current_table_name()
         return self.get_db_by_name(table_name)
 
-    def get_db_by_name(self, table_name: str):  # noqa
+    def get_db_by_name(self, table_name: str):
         """Возвращает ссылку на Бд в зависимоти от имени таблицы."""
         if table_name == cts.PG_TABLE:
             return self.db.pg_db
@@ -566,7 +566,7 @@ class SettingsWindow(QWidget):
     change_settings_signal: pyqtSignal = pyqtSignal()
     terminal_signal: pyqtSignal = pyqtSignal(str)
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.init_gui()
         self.button_save.clicked.connect(self.save_button_clicked)
@@ -983,8 +983,7 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     """Основная программа - создаем основные объекты и запускаем приложение."""
     app: QApplication = QApplication(sys.argv)
-    # app.setWindowIcon(set_icon('icons/logo_main.ico'))
-    # qdarktheme.setup_theme()
+    qdarktheme.setup_theme()
     mainwindow: MainWindow = MainWindow()
     mainwindow.show()
     app.exec()

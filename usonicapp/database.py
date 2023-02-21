@@ -5,7 +5,7 @@ import constants as cts
 from config import settings
 from models import Data, DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
 basedir = os.path.dirname(__file__)
 

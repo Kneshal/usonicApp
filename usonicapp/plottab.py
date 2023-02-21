@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PyQt6.QtCore import QObject, pyqtSlot
-from PyQt6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtCore import QObject, pyqtSlot
+from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from qbstyles import mpl_style
 
 mpl_style(True)

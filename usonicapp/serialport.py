@@ -5,8 +5,8 @@ from decimal import Decimal
 
 import constants as cts
 from config import settings
-from PyQt6.QtCore import QIODeviceBase, QObject, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtSerialPort import QSerialPort, QSerialPortInfo
+from PyQt5.QtCore import QIODevice, QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
 
 class SerialPortManager(QObject):
@@ -80,7 +80,7 @@ class SerialPortManager(QObject):
         # Открываем порт, если он был закрыт
         if self.serial.isOpen() is False:
             self.serial.setPortName(settings.COM_PORT)
-            self.serial.open(QIODeviceBase.OpenModeFlag.ReadWrite)
+            self.serial.open(QIODevice.ReadWrite)
         # Если ошибок нет, запускам таймер для ожидания ответа от порта
         if self.serial.error() == self.serial.SerialPortError.NoError:
             self.serial.write(cts.CONNECTION_CHECK)

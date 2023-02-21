@@ -1,8 +1,8 @@
 import os
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QToolButton, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QCheckBox, QHBoxLayout, QToolButton, QWidget
 
 
 class CellCheckbox(QWidget):
