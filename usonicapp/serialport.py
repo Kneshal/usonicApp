@@ -5,7 +5,7 @@ import struct
 from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, Union
 
 import constants as cts
 from config import settings
@@ -70,17 +70,17 @@ class SerialPortManager(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self.serial = QSerialPort()
+        self.serial: QSerialPort = QSerialPort()
         self.serial.setBaudRate(115200)
         self.serial.readyRead.connect(self.read_data)
 
         self.factory_number = None
         self.calibration = None
-        self.serial_port = settings.COM_PORT
-        self.transfer_status = False
-        self.current_freq = None
-        self.freq_list = []
-        self.attempts_number = 0
+        self.serial_port: str = settings.COM_PORT
+        self.transfer_status: bool = False
+        # self.current_freq = None
+        self.freq_list: list = []
+        self.attempts_number: int = 0
 
     def init_timers(self) -> None:
         """Настройка и запуск таймеров."""
@@ -176,7 +176,7 @@ class SerialPortManager(QObject):
         self.check_connection_timer.stop()
         self.response_serial_port_timer.stop()
 
-        self.current_freq = freq_list[0]
+        self.current_freq: int = freq_list[0]
         self.freq_list = freq_list
         self.calibration_request()
 
@@ -192,7 +192,7 @@ class SerialPortManager(QObject):
     def send_data(self, modify: bool = True) -> None:
         """Отправка данных на COM-порт."""
         if modify is True:
-            self.current_freq: int = int(self.freq_list[0] * 100)  # не точно
+            self.current_freq = int(self.freq_list[0] * 100)  # не точно
             self.freq_list.pop(0)
         self.serial.write(
             cts.DATA + struct.pack('<i', self.current_freq)
@@ -249,9 +249,9 @@ class SerialPortManager(QObject):
                     print('Неизвестная команда.')
 
     @staticmethod
-    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal, f: int) -> dict[str, Any]:  # noqa
+    def calc_data(raw_values: RawMeasuredValue, calibration: Decimal, f: int) -> MeasuredValue:  # noqa
         """Расчет параметров на основе данных от COM-порта."""
-        calibration = calibration / 100
+        # calibration = calibration
 
         z = (calibration * pow(10, (((raw_values.v_db_u - raw_values.v_ref / 2) - (raw_values.v_db_i - raw_values.v_ref / 2)) / 600)))  # noqa
         ph = (raw_values.v_ph_i/10 - raw_values.v_ph_u/10)

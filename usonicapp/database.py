@@ -1,17 +1,18 @@
 import os
 from dataclasses import asdict
 from datetime import datetime
-from typing import Union
+from typing import Callable, Union
 
 import constants as cts
-import simplejson as json  # instead of import json
+import simplejson as json
 from config import settings
 from models import DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
-from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtBoundSignal, pyqtSignal, pyqtSlot
 
 basedir = os.path.dirname(__file__)
 
+# Может прописать декоратор на проверку подключения к бд
 
 class DataBase(QObject):
     """Класс описывает действующие базы данных и взаимодействие с ними."""
@@ -62,12 +63,12 @@ class DataBase(QObject):
         )
 
     @pyqtSlot()
-    def check_db_status(self) -> None:
+    def check_db_status(self) -> None:  # -> Union[Callable[..., None], pyqtBoundSignal]:
         """Изменение иконки доступности БД."""
         status = self.check_pg_db()
-        return self.pg_db_checked_signal.emit(status)
+        self.pg_db_checked_signal.emit(status)
 
-    def connect_and_bind_models(self, db, models) -> None:
+    def connect_and_bind_models(self, db, models) -> bool:
         """Подключаемся к бд и привязываем модели."""
         if isinstance(db, PostgresqlDatabase):
             self.init_pg_db()
@@ -86,7 +87,7 @@ class DataBase(QObject):
             return None
         return record.device_model.title
 
-    def get_record(self, db = None, id: int = None, factory_number: str = None):  # noqa  -> Record | None
+    def get_record(self, db = None, id = None, factory_number = None) -> Record:  # noqa  -> Record | None
         """Возвращает запись с заданным id из указанной БД."""
         if db is None:
             db = self.get_ready_db()
@@ -97,15 +98,14 @@ class DataBase(QObject):
                  .join(User)
                  .switch(Record)
                  .join(DeviceModel))
-        record = None
         if id:
             record: Record = (query
                               .where(Record.id == id)
                               .get_or_none())
-        elif factory_number:
-            record: Record = (query
-                              .where(Record.factory_number == factory_number)
-                              .get_or_none())
+        else:
+            record = (query
+                      .where(Record.factory_number == factory_number)
+                      .get_or_none())
         self.close(db)
         return record
 
@@ -144,9 +144,9 @@ class DataBase(QObject):
         self.close(db)
         return True
 
-    def get_filtered_records(self, db, filter_settings=None, search=None, temporary=False):  # noqa
+    def get_filtered_records(self, db, filter_settings=None, search=None, temporary=False) -> dict:  # noqa
         """Получаем список записей в соответствии с настройками фильтрации."""
-        result = {}
+        result: dict = {}
 
         connection = self.connect_and_bind_models(
             db, [Record, DeviceModel, User]
@@ -234,12 +234,12 @@ class DataBase(QObject):
 
     def get_models_sqlite(self) -> list:
         """Возвращает список всех моделей в бд SQLite."""
-        models = []
+        models: list = []
         if not self.check_sqlite_db():
             return models
         self.sqlite_db.connect()
         with self.sqlite_db.bind_ctx([DeviceModel]):
-            models: list = [model.title for model in DeviceModel.select()]
+            models = [model.title for model in DeviceModel.select()]
         self.sqlite_db.close()
         return models
 
@@ -255,12 +255,12 @@ class DataBase(QObject):
 
     def get_users_sqlite(self) -> list:
         """Возвращает список всех пользователей в бд SQLite."""
-        users = []
+        users: list = []
         if not self.check_sqlite_db():
             return users
         self.sqlite_db.connect()
         with self.sqlite_db.bind_ctx([User]):
-            users: list = [user.username for user in User.select()]
+            users = [user.username for user in User.select()]
         self.sqlite_db.close()
         return users
 

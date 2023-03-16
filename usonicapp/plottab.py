@@ -13,13 +13,13 @@ mpl_style(True)
 class MplCanvas(FigureCanvasQTAgg):
     """Класс описывающий настройки холста для графиков."""
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(11, 9))
-        self.fig.set_facecolor('#202124')
-        self.axes_1 = self.fig.add_subplot(211)
-        self.axes_2_1 = self.fig.add_subplot(212)
+        fig = Figure(figsize=(11, 9))
+        fig.set_facecolor('#202124')
+        self.axes_1 = fig.add_subplot(211)
+        self.axes_2_1 = fig.add_subplot(212)
         self.axes_2_2 = self.axes_2_1.twinx()
         self.axes_2_2.grid(False)
-        self.fig.subplots_adjust(
+        fig.subplots_adjust(
             left=0.09,
             bottom=0.05,
             right=0.91,
@@ -27,7 +27,7 @@ class MplCanvas(FigureCanvasQTAgg):
             wspace=None,
             hspace=None,
         )
-        super(MplCanvas, self).__init__(self.fig)
+        super(MplCanvas, self).__init__(fig)
 
 
 class PlotTab(QObject):
