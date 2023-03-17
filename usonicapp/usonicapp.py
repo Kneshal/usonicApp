@@ -1,40 +1,40 @@
-import os
 import sys
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Union
+from pathlib import Path
+from typing import Dict, List, Union
 
-import constants as cts
 import numpy as np
 import qdarktheme
 import simplejson as json
-from config import settings
-from database import DataBase
-from dynaconf import loaders
-from dynaconf.utils.boxing import DynaBox
-from models import Record, generate_factory_number
-from peewee import PostgresqlDatabase, SqliteDatabase
-from plottab import PlotTab, PlotUpdateWorker
 from PyQt5 import uic
 from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
                           pyqtSignal, pyqtSlot)
 from PyQt5.QtGui import QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QWidget)
+from dynaconf import loaders
+from dynaconf.utils.boxing import DynaBox
+from peewee import PostgresqlDatabase, SqliteDatabase
+
+import constants as cts
+from config import settings
+from database import DataBase
+from models import Record, generate_factory_number
+from plottab import PlotTab, PlotUpdateWorker
 from serialport import MeasuredValues, SerialPortManager
 from widgets import CellCheckbox, EditToolButton
 
-basedir = os.path.dirname(__file__)
-
+BASE_DIR = Path(__file__).resolve().parent
 
 def set_icon(path: str) -> QIcon:
     """Формирует иконку на базе пути к файлу."""
-    return QIcon(os.path.join(basedir, path))
+    return QIcon(str(BASE_DIR / path))
 
 
 def set_pixmap(path: str) -> QPixmap:
     """Формирует изображение на базе пути к файлу."""
-    return QPixmap(os.path.join(basedir, path))
+    return QPixmap(str(BASE_DIR / path))
 
 
 class UploadWindow(QWidget):
@@ -49,7 +49,7 @@ class UploadWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/upload.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/upload.ui', self)
         self.setWindowIcon(set_icon('icons/logo_upload.png'))
         self.setWindowTitle('Загрузить запись')
 
@@ -121,7 +121,7 @@ class EditRecordWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/edit_record.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/edit_record.ui', self)
         self.setWindowIcon(set_icon('icons/logo_edit.png'))
         self.setWindowTitle('Редактировать запись')
 
@@ -202,7 +202,7 @@ class FilterWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/filter.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/filter.ui', self)
         self.setWindowIcon(set_icon('icons/logo_filter.png'))
         self.setWindowTitle('Фильтрация')
         current_date: QDate = QDate.currentDate()
@@ -278,7 +278,7 @@ class TableWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/table.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/table.ui', self)
         self.setWindowIcon(set_icon('icons/logo_table.png'))
         self.setWindowTitle('База данных')
         self.tabwidget.setTabIcon(0, set_icon('icons/remote_server.png'))
@@ -576,7 +576,7 @@ class SettingsWindow(QWidget):
 
     def init_gui(self):
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/settings.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/settings.ui', self)
         self.setWindowIcon(set_icon('icons/logo_settings.png'))
         self.setWindowTitle('Настройки')
 
@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
     """Основное окно программы."""
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        uic.loadUi(os.path.join(basedir, 'forms/mainwindow.ui'), self)
+        uic.loadUi(BASE_DIR / 'forms/mainwindow.ui', self)
         self.temporary: bool = False
         self.db: DataBase = DataBase()
         self.serial_manager: SerialPortManager = SerialPortManager()
