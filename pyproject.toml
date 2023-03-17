@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "usonicapp"
+version = "0.1.0"
+description = ""
+authors = ["ADes <adesbiysk@yandex.ru>"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+dynaconf = "^3.1.12"
+simplejson = "^3.18.4"
+PyQt5 = "^5.15.9"
+peewee = "^3.16.0"
+matplotlib = "^3.7.1"
+pyqtdarktheme = "2.1.0"
+qbstyles = "0.1.4"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
