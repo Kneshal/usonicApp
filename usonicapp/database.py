@@ -1,16 +1,15 @@
-import os
 from dataclasses import asdict
 from datetime import datetime
-from typing import Callable, Union
+from typing import Union, List
+
+import simplejson as json
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
 
 import constants as cts
-import simplejson as json
-from config import settings
+from config import settings, SQLITE_FILE
 from models import DeviceModel, Record, User
-from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
-from PyQt5.QtCore import QObject, QTimer, pyqtBoundSignal, pyqtSignal, pyqtSlot
 
-basedir = os.path.dirname(__file__)
 
 # Может прописать декоратор на проверку подключения к бд
 
@@ -25,7 +24,7 @@ class DataBase(QObject):
             autoconnect=False,
         )
         self.sqlite_db = SqliteDatabase(
-            os.path.join(basedir, 'db/usonicApp.db'),
+            SQLITE_FILE,
             autoconnect=False,
             pragmas={'foreign_keys': 1}
         )
@@ -87,7 +86,7 @@ class DataBase(QObject):
             return None
         return record.device_model.title
 
-    def get_record(self, db = None, id = None, factory_number = None) -> Record:  # noqa  -> Record | None
+    def get_record(self, db=None, id=None, factory_number=None) -> Record:  # noqa  -> Record | None
         """Возвращает запись с заданным id из указанной БД."""
         if db is None:
             db = self.get_ready_db()
@@ -253,11 +252,10 @@ class DataBase(QObject):
         self.pg_db.close()
         return users
 
-    def get_users_sqlite(self) -> list:
+    def get_users_sqlite(self) -> List[str]:
         """Возвращает список всех пользователей в бд SQLite."""
-        users: list = []
         if not self.check_sqlite_db():
-            return users
+            return []
         self.sqlite_db.connect()
         with self.sqlite_db.bind_ctx([User]):
             users = [user.username for user in User.select()]

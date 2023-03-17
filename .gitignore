@@ -144,3 +144,4 @@ dmypy.json
 
 .idea/
 *.db
+settings.toml
