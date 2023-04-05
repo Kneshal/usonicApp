@@ -1,40 +1,29 @@
-import os
 import sys
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
-import constants as cts
 import numpy as np
 import qdarktheme
 import simplejson as json
-from config import settings
-from database import DataBase
-from dynaconf import loaders
-from dynaconf.utils.boxing import DynaBox
-from models import Record, generate_factory_number
-from peewee import PostgresqlDatabase, SqliteDatabase
-from plottab import PlotTab, PlotUpdateWorker
 from PyQt5 import uic
 from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
                           pyqtSignal, pyqtSlot)
-from PyQt5.QtGui import QColor, QIcon, QPixmap
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
                              QTableWidget, QTableWidgetItem, QWidget)
+from dynaconf import loaders
+from dynaconf.utils.boxing import DynaBox
+from peewee import PostgresqlDatabase, SqliteDatabase
+
+import constants as cts
+from config import settings
+from database import DataBase
+from models import Record, generate_factory_number
+from plottab import PlotTab, PlotUpdateWorker
 from serialport import MeasuredValues, SerialPortManager
+from utils import get_icon, get_pixmap, get_form_path
 from widgets import CellCheckbox, EditToolButton
-
-basedir = os.path.dirname(__file__)
-
-
-def set_icon(path: str) -> QIcon:
-    """Формирует иконку на базе пути к файлу."""
-    return QIcon(os.path.join(basedir, path))
-
-
-def set_pixmap(path: str) -> QPixmap:
-    """Формирует изображение на базе пути к файлу."""
-    return QPixmap(os.path.join(basedir, path))
 
 
 class UploadWindow(QWidget):
@@ -49,8 +38,8 @@ class UploadWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/upload.ui'), self)
-        self.setWindowIcon(set_icon('icons/logo_upload.png'))
+        uic.loadUi(get_form_path('upload.ui'), self)
+        self.setWindowIcon(get_icon('logo_upload.png'))
         self.setWindowTitle('Загрузить запись')
 
     def init_signals(self) -> None:
@@ -121,8 +110,8 @@ class EditRecordWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/edit_record.ui'), self)
-        self.setWindowIcon(set_icon('icons/logo_edit.png'))
+        uic.loadUi(get_form_path('edit_record.ui'), self)
+        self.setWindowIcon(get_icon('logo_edit.png'))
         self.setWindowTitle('Редактировать запись')
 
     def init_signals(self) -> None:
@@ -202,8 +191,8 @@ class FilterWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/filter.ui'), self)
-        self.setWindowIcon(set_icon('icons/logo_filter.png'))
+        uic.loadUi(get_form_path('filter.ui'), self)
+        self.setWindowIcon(get_icon('logo_filter.png'))
         self.setWindowTitle('Фильтрация')
         current_date: QDate = QDate.currentDate()
         self.dateedit_1.setDate(current_date)
@@ -263,6 +252,7 @@ class TableWindow(QWidget):
     donwload_records_signal: pyqtSignal = pyqtSignal(list)
 
     """Таблица базы данных программы."""
+
     def __init__(self, db: DataBase) -> None:
         super().__init__()
         self.db: DataBase = db
@@ -278,18 +268,18 @@ class TableWindow(QWidget):
 
     def init_gui(self) -> None:
         """Настраиваем интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/table.ui'), self)
-        self.setWindowIcon(set_icon('icons/logo_table.png'))
+        uic.loadUi(get_form_path('table.ui'), self)
+        self.setWindowIcon(get_icon('logo_table.png'))
         self.setWindowTitle('База данных')
-        self.tabwidget.setTabIcon(0, set_icon('icons/remote_server.png'))
-        self.tabwidget.setTabIcon(1, set_icon('icons/local_server.png'))
+        self.tabwidget.setTabIcon(0, get_icon('remote_server.png'))
+        self.tabwidget.setTabIcon(1, get_icon('local_server.png'))
         self.tabwidget.setIconSize(QSize(20, 20))
-        self.open_button.setIcon(set_icon('icons/load.png'))
-        self.update_button.setIcon(set_icon('icons/update.png'))
-        self.filter_button.setIcon(set_icon('icons/filter.png'))
-        self.search_button.setIcon(set_icon('icons/search.png'))
-        self.delete_button.setIcon(set_icon('icons/delete.png'))
-        self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+        self.open_button.setIcon(get_icon('load.png'))
+        self.update_button.setIcon(get_icon('update.png'))
+        self.filter_button.setIcon(get_icon('filter.png'))
+        self.search_button.setIcon(get_icon('search.png'))
+        self.delete_button.setIcon(get_icon('delete.png'))
+        self.temp_button.setIcon(get_icon('temp_off.png'))
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
 
     def init_windows(self) -> None:
@@ -402,7 +392,7 @@ class TableWindow(QWidget):
             else:
                 color = lightslategray
             flag_selectable_enabled = (
-                Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+                    Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
             )
             rowposition: int = table.rowCount()
             table.insertRow(rowposition)
@@ -549,9 +539,9 @@ class TableWindow(QWidget):
         self.temporary = not self.temporary
         self.update_tables()
         if self.temporary:
-            self.temp_button.setIcon(set_icon('icons/temp_on.png'))
+            self.temp_button.setIcon(get_icon('temp_on.png'))
         else:
-            self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+            self.temp_button.setIcon(get_icon('temp_off.png'))
 
     @pyqtSlot()
     def closeEvent(self, event):  # noqa
@@ -576,8 +566,8 @@ class SettingsWindow(QWidget):
 
     def init_gui(self):
         """Настраиваем графический интерфейс."""
-        uic.loadUi(os.path.join(basedir, 'forms/settings.ui'), self)
-        self.setWindowIcon(set_icon('icons/logo_settings.png'))
+        uic.loadUi(get_form_path('settings.ui'), self)
+        self.setWindowIcon(get_icon('logo_settings.png'))
         self.setWindowTitle('Настройки')
 
     def update_window_widgets(self, users: list, serial_ports: list) -> None:
@@ -630,9 +620,10 @@ class SettingsWindow(QWidget):
 
 class MainWindow(QMainWindow):
     """Основное окно программы."""
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        uic.loadUi(os.path.join(basedir, 'forms/mainwindow.ui'), self)
+        uic.loadUi(get_form_path('mainwindow.ui'), self)
         self.temporary: bool = False
         self.db: DataBase = DataBase()
         self.serial_manager: SerialPortManager = SerialPortManager()
@@ -650,23 +641,23 @@ class MainWindow(QMainWindow):
     def init_gui(self) -> None:
         """Настройка графического интерфейса."""
         self.centralwidget.setContentsMargins(6, 6, 6, 6)
-        self.setWindowIcon(set_icon('icons/logo_main.png'))
+        self.setWindowIcon(get_icon('logo_main.png'))
         self.setWindowTitle('Usonic App')
-        self.startstop_button.setIcon(set_icon('icons/start.png'))
-        self.settings_button.setIcon(set_icon('icons/settings.png'))
-        self.compare_button.setIcon(set_icon('icons/compare.png'))
-        self.table_button.setIcon(set_icon('icons/table.png'))
-        self.temp_button.setIcon(set_icon('icons/temp_off.png'))
-        self.upload_button.setIcon(set_icon('icons/upload_false.png'))
+        self.startstop_button.setIcon(get_icon('start.png'))
+        self.settings_button.setIcon(get_icon('settings.png'))
+        self.compare_button.setIcon(get_icon('compare.png'))
+        self.table_button.setIcon(get_icon('table.png'))
+        self.temp_button.setIcon(get_icon('temp_off.png'))
+        self.upload_button.setIcon(get_icon('upload_false.png'))
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
         self.fnumber_lineedit.setText(
             settings.PREVIOUS_FACTORY_NUMBER
         )
         self.devicemodel_combobox.addItems(self.db.get_models_pg())
-        self.connect_pixmap = set_pixmap('icons/connect.png')
-        self.disconnect_pixmap = set_pixmap('icons/disconnect.png')
-        self.online_pixmap = set_pixmap('icons/online.png')
-        self.offline_pixmap = set_pixmap('icons/offline.png')
+        self.connect_pixmap = get_pixmap('connect.png')
+        self.disconnect_pixmap = get_pixmap('disconnect.png')
+        self.online_pixmap = get_pixmap('online.png')
+        self.offline_pixmap = get_pixmap('offline.png')
 
         self.update_serial_port_interface(False)
 
@@ -775,10 +766,10 @@ class MainWindow(QMainWindow):
     def toggle_upload_button_status(self, index) -> None:
         """Меняет состояние кнопки и иконку."""
         if index != -1:
-            self.upload_button.setIcon(set_icon('icons/upload_true.png'))
+            self.upload_button.setIcon(get_icon('upload_true.png'))
             self.upload_button.setEnabled(True)
         else:
-            self.upload_button.setIcon(set_icon('icons/upload_false.png'))
+            self.upload_button.setIcon(get_icon('upload_false.png'))
             self.upload_button.setEnabled(False)
 
     @pyqtSlot()
@@ -808,7 +799,7 @@ class MainWindow(QMainWindow):
 
     def start_transfer(self):
         """Начало передачи данных."""
-        self.startstop_button.setIcon(set_icon('icons/stop.png'))
+        self.startstop_button.setIcon(get_icon('stop.png'))
         freq_list = self.get_freq_list()
         self.progressbar.setMaximum(len(freq_list))
         self.progressbar.setValue(0)
@@ -826,12 +817,12 @@ class MainWindow(QMainWindow):
             factory_number=factory_number,
             device_model_title=device_model_title,
             username=username,
-            )
+        )
         self.serial_manager.start_data_transfer(freq_list)
 
     def stop_transfer(self):
         """Остановка передачи данных."""
-        self.startstop_button.setIcon(set_icon('icons/start.png'))
+        self.startstop_button.setIcon(get_icon('start.png'))
         self.toggle_serial_interface(True)
         self.terminal_msg('Передача данных завершена')
         self.serial_manager.stop_data_transfer()
@@ -907,10 +898,10 @@ class MainWindow(QMainWindow):
         его доступности."""
         if status:
             self.comport_label.setPixmap(self.connect_pixmap)
-            self.startstop_button.setIcon(set_icon('icons/start'))
+            self.startstop_button.setIcon(get_icon('start'))
         else:
             self.comport_label.setPixmap(self.disconnect_pixmap)
-            self.startstop_button.setIcon(set_icon('icons/start_disabled'))
+            self.startstop_button.setIcon(get_icon('start_disabled'))
             self.devicemodel_combobox.setEnabled(False)
         self.temp_button.setEnabled(status)
         self.startstop_button.setEnabled(status)
@@ -976,12 +967,12 @@ class MainWindow(QMainWindow):
         Меняет видимость виджета ввода заводского номера."""
         self.temporary = not self.temporary
         if self.temporary:
-            self.temp_button.setIcon(set_icon('icons/temp_on.png'))
+            self.temp_button.setIcon(get_icon('temp_on.png'))
             self.label.setVisible(False)
             self.fnumber_lineedit.setVisible(False)
             self.devicemodel_combobox.setEnabled(True)
         else:
-            self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+            self.temp_button.setIcon(get_icon('temp_off.png'))
             self.label.setVisible(True)
             self.fnumber_lineedit.setVisible(True)
             self.search_model_by_fnumber()
