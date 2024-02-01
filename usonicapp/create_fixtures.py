@@ -29,7 +29,7 @@ if __name__ == '__main__':
         db.bind(models)
         db.connect()
         db.create_tables(models)
-
+        print('Создана ', db)
         for user in users:
             User.get_or_create(username=user)
         for device_model in device_models:
@@ -69,6 +69,10 @@ if __name__ == '__main__':
                 factory_number=factory_number,
                 comment=f'comment_{i}',
                 temporary=temporary,
+                frequency=0,
+                resistance=0,
+                quality_factor=0,
             )
+            print('waiting...')
         db.close()
     print('Таблицы и фикстуры созданы')

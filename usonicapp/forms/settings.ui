@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>229</width>
-    <height>312</height>
+    <width>251</width>
+    <height>378</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -62,7 +62,7 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="0" colspan="2">
+     <item row="6" column="0" colspan="2">
       <widget class="QLabel" name="label_2">
        <property name="text">
         <string>Параметры сети</string>
@@ -72,42 +72,42 @@
        </property>
       </widget>
      </item>
-     <item row="6" column="0">
+     <item row="7" column="0">
       <widget class="QLabel" name="label_3">
        <property name="text">
         <string>База данных</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="1">
+     <item row="7" column="1">
       <widget class="QLineEdit" name="lineedit_dbname">
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
-     <item row="7" column="0">
+     <item row="8" column="0">
       <widget class="QLabel" name="label_4">
        <property name="text">
         <string>Пользователь</string>
        </property>
       </widget>
      </item>
-     <item row="7" column="1">
+     <item row="8" column="1">
       <widget class="QLineEdit" name="lineedit_dbuser">
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
-     <item row="8" column="0">
+     <item row="9" column="0">
       <widget class="QLabel" name="label_5">
        <property name="text">
         <string>Пароль</string>
        </property>
       </widget>
      </item>
-     <item row="8" column="1">
+     <item row="9" column="1">
       <widget class="QLineEdit" name="lineedit_dbpassword">
        <property name="echoMode">
         <enum>QLineEdit::Password</enum>
@@ -117,28 +117,28 @@
        </property>
       </widget>
      </item>
-     <item row="9" column="0">
+     <item row="10" column="0">
       <widget class="QLabel" name="label_6">
        <property name="text">
         <string>Хост</string>
        </property>
       </widget>
      </item>
-     <item row="9" column="1">
+     <item row="10" column="1">
       <widget class="QLineEdit" name="lineedit_dbhost">
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
-     <item row="10" column="0">
+     <item row="11" column="0">
       <widget class="QLabel" name="label_7">
        <property name="text">
         <string>Порт</string>
        </property>
       </widget>
      </item>
-     <item row="10" column="1">
+     <item row="11" column="1">
       <widget class="QSpinBox" name="spinbox_port">
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -151,7 +151,7 @@
        </property>
       </widget>
      </item>
-     <item row="11" column="0" colspan="2">
+     <item row="12" column="0" colspan="2">
       <widget class="QCheckBox" name="checkbox_bugreport">
        <property name="text">
         <string>Отправлять сообщения об ошибках</string>
@@ -188,6 +188,19 @@
        </property>
        <property name="value">
         <number>30</number>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QCheckBox" name="checkbox_realtime_chart">
+       <property name="layoutDirection">
+        <enum>Qt::RightToLeft</enum>
+       </property>
+       <property name="text">
+        <string>График в режиме реального времени</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </item>

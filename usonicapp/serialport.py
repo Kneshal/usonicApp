@@ -5,7 +5,6 @@ import struct
 from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Union
 
 import constants as cts
 from config import settings
@@ -79,6 +78,7 @@ class SerialPortManager(QObject):
         self.serial_port: str = settings.COM_PORT
         self.transfer_status: bool = False
         # self.current_freq = None
+        self.start_freq = None
         self.freq_list: list = []
         self.attempts_number: int = 0
 
@@ -175,7 +175,7 @@ class SerialPortManager(QObject):
         """Начало процесса передачи данных."""
         self.check_connection_timer.stop()
         self.response_serial_port_timer.stop()
-
+        self.start_freq = freq_list[0]
         self.current_freq: int = freq_list[0]
         self.freq_list = freq_list
         self.calibration_request()
@@ -218,6 +218,12 @@ class SerialPortManager(QObject):
                     self.attempts_number = 0
                     self.data_receive_timer.stop()
 
+                    # Если это первая итерация передачи данных, то пропускаем
+                    # ее из-за большого отклонения данных.
+                    f = self.current_freq / 100
+                    if self.start_freq == f:
+                        return self.send_data()
+
                     received_data = RawMeasuredValue(
                         v_ph_i=convert_bytes_to_decimal(data[0:2]),
                         v_db_i=convert_bytes_to_decimal(data[2:4]),
@@ -226,7 +232,7 @@ class SerialPortManager(QObject):
                         v_ref=convert_bytes_to_decimal(data[8:10]),
                         v_i=convert_bytes_to_decimal(data[10:12]),
                     )
-                    f = self.current_freq / 100
+
                     measured_value = self.calc_data(
                         raw_values=received_data,
                         calibration=self.calibration,

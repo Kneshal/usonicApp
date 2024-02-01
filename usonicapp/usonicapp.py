@@ -2,12 +2,14 @@ import os
 import sys
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Union
+from math import ceil
+from typing import Dict, List, Union
 
 import constants as cts
 import numpy as np
 import qdarktheme
 import simplejson as json
+from calc_stat import calc_stat
 from config import settings
 from database import DataBase
 from dynaconf import loaders
@@ -69,6 +71,10 @@ class UploadWindow(QWidget):
             self.record.device_model.title)
         self.title_combobox.setCurrentIndex(index)
 
+        index = self.composition_combobox.findText(
+            self.record.composition)
+        self.composition_combobox.setCurrentIndex(index)
+
         self.comment_textedit.clear()
         if self.record.temporary:
             self.pg_radiobutton.setVisible(False)
@@ -84,10 +90,11 @@ class UploadWindow(QWidget):
                 self.sqlite_radiobutton.setChecked(True)
 
     def upload_button_clicked(self) -> None:
-        """Нажатие кнопки загрузки записи  в БД."""
+        """Нажатие кнопки загрузки записи в БД."""
         db = self.db_manager.sqlite_db
         if self.pg_radiobutton.isChecked():
             db = self.db_manager.pg_db
+            # self.record.local = False
 
         factory_number = self.fnumber_lineedit.text()
         if self.record.temporary:
@@ -95,11 +102,14 @@ class UploadWindow(QWidget):
 
         title = self.title_combobox.currentText()
         device_model = self.db_manager.get_model_by_title(title)
+        composition = self.composition_combobox.currentText()
         self.record.factory_number = factory_number
         self.record.device_model = device_model
+        self.record.composition = composition
         self.record.comment = self.comment_textedit.toPlainText()
 
-        result: bool = self.db_manager.upload_record(db, self.record, self.data)
+        result: bool = self.db_manager.upload_record(
+            db, self.record, self.data)
         message: str = 'Ошибка при загрузке записи в БД.'
         if result:
             message = 'Запись успешно загружена в БД.'
@@ -141,8 +151,13 @@ class EditRecordWindow(QWidget):
         usernames: list = self.db.get_users_pg()
         self.user_combobox.clear()
         self.user_combobox.addItems(usernames)
-        index_user: int = self.user_combobox.findText(self.record.user.username)
+        index_user: int = self.user_combobox.findText(
+            self.record.user.username)
         self.user_combobox.setCurrentIndex(index_user)
+
+        index = self.composition_combobox.findText(
+            self.record.composition)
+        self.composition_combobox.setCurrentIndex(index)
 
         device_model_titles: list = self.db.get_models_pg()
         self.devicemodel_combobox.clear()
@@ -166,6 +181,7 @@ class EditRecordWindow(QWidget):
             return
         data: dict = {
             'title': self.devicemodel_combobox.currentText(),
+            'composition': self.composition_combobox.currentText(),
             'username': self.user_combobox.currentText(),
             'factory_number': self.factorynumber_lineedit.text(),
             'comment': self.comment_textedit.toPlainText(),
@@ -289,7 +305,9 @@ class TableWindow(QWidget):
         self.filter_button.setIcon(set_icon('icons/filter.png'))
         self.search_button.setIcon(set_icon('icons/search.png'))
         self.delete_button.setIcon(set_icon('icons/delete.png'))
+        self.sync_button.setIcon(set_icon('icons/sync.png'))
         self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
 
     def init_windows(self) -> None:
@@ -303,6 +321,7 @@ class TableWindow(QWidget):
         """Подключаем сигналы к слотам."""
         self.open_button.clicked.connect(self.download_button_clicked)
         self.delete_button.clicked.connect(self.delete_button_clicked)
+        self.sync_button.clicked.connect(self.sync_button_clicked)
         self.update_button.clicked.connect(self.update_button_clicked)
         self.filter_button.clicked.connect(self.filter_button_clicked)
         self.search_button.clicked.connect(self.search_button_clicked)
@@ -310,16 +329,16 @@ class TableWindow(QWidget):
         self.pg_table.doubleClicked.connect(self.item_double_clicked)
         self.temp_button.clicked.connect(self.temp_button_clicked)
         self.pg_filter_window.apply_filter_signal.connect(
-            lambda: self.load_data(  # type: ignore
+            lambda: self.load_data(
                 table=self.tabwidget.findChild(QTableWidget, cts.PG_TABLE)
             )
         )
         self.sqlite_filter_window.apply_filter_signal.connect(
-            lambda: self.load_data(  # type: ignore
+            lambda: self.load_data(
                 self.tabwidget.findChild(QTableWidget, cts.SQLITE_TABLE)
             )
         )
-        self.edit_record_window.edit_signal.connect(self.load_data)  # type: ignore
+        self.edit_record_window.edit_signal.connect(self.load_data)
         self.search_edit.returnPressed.connect(self.search_button_clicked)
 
     def get_current_table(self) -> QTableWidget:
@@ -377,9 +396,20 @@ class TableWindow(QWidget):
         )
         table.clearContents()
         table.setRowCount(0)
-        table.setColumnCount(6)
+        table.setColumnCount(10)
         table.setHorizontalHeaderLabels(
-            ['id', '', 'Дата', 'Пользователь', 'Комментарий', '']
+            [
+                'id',
+                '',
+                'Дата',
+                'Оператор',
+                'Состав',
+                'F, Гц',
+                'R, Ом',
+                'Q',
+                'Комментарий',
+                '',
+            ]
         )
         table.setColumnHidden(0, True)
         table.verticalHeader().setVisible(False)
@@ -387,8 +417,12 @@ class TableWindow(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
 
         color_flag: bool = False
         gray: QColor = QColor(128, 128, 128)
@@ -412,7 +446,7 @@ class TableWindow(QWidget):
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(rowposition, 0, item)
-            table.setSpan(rowposition, 0, 1, 6)
+            table.setSpan(rowposition, 0, 1, 10)
             self.set_color_to_row(table, rowposition, color)
 
             record: Record
@@ -435,25 +469,50 @@ class TableWindow(QWidget):
                 item.setFlags(flag_selectable_enabled)
                 table.setItem(row, 2, item)
                 # Ячейка с именем пользователя
-                item = QTableWidgetItem(
-                    record.user.username
-                )
+                item = QTableWidgetItem(record.user.username)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, 3, item)
+                # Ячейка с комплектацией УЗКС
+                item = QTableWidgetItem(record.composition)
+                item.setFlags(flag_selectable_enabled)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, 4, item)
+                # Ячейка с резонансной частотой
+                frequence = (
+                    str(record.frequency) if record.frequency != 0 else '')
+                item = QTableWidgetItem(frequence)
+                item.setFlags(flag_selectable_enabled)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, 5, item)
+                # Ячейка с сопротивлением
+                resistance = (
+                    str(record.resistance) if record.resistance != 0 else '')
+                item = QTableWidgetItem(resistance)
+                item.setFlags(flag_selectable_enabled)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, 6, item)
+                # Ячейка с добротность
+                quality_factor = (
+                    str(record.quality_factor) if record.quality_factor != 0
+                    else '')
+                item = QTableWidgetItem(quality_factor)
+                item.setFlags(flag_selectable_enabled)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, 7, item)
                 # Ячейка с комментарием
                 item = QTableWidgetItem(record.comment)
                 item.setFlags(flag_selectable_enabled)
-                table.setItem(row, 4, item)
-                self.set_color_to_row(table, row, color)
+                table.setItem(row, 8, item)
                 # Ячейка с иконкой изменения
                 item = QTableWidgetItem()
                 edit_button: EditToolButton = EditToolButton(
                     self.edit_record_window, table, db, str(record.id)
                 )
                 item.setFlags(flag_selectable_enabled)
-                table.setItem(row, 5, item)
-                table.setCellWidget(row, 5, edit_button)
+                table.setItem(row, 9, item)
+                table.setCellWidget(row, 9, edit_button)
+
                 self.set_color_to_row(table, row, color)
                 row += 1
             color_flag = not color_flag
@@ -516,6 +575,27 @@ class TableWindow(QWidget):
                 'Не удалось удалить данные из базы данных.'
             )
         self.load_data(self.get_current_table())
+
+    @pyqtSlot()
+    def sync_button_clicked(self) -> None:
+        """Слот нажатия кнопки переноса данных. Создает записи в другой
+        БД, удаляет записи из текущей БД и
+        отправляет сообщение в терминал."""
+        db: DataBase = self.get_current_db()
+        list_id: list = self.get_current_selected_records()
+        print(db, list_id)
+        if not list_id:
+            return
+        result: bool = self.db.sync_records(db, list_id)
+        if result:
+            self.terminal_signal.emit(
+                f'Записей перенесено: {len(list_id)}.'
+            )
+        else:
+            self.terminal_signal.emit(
+                'Не удалось перенести записи из базы данных.'
+            )
+        self.update_tables()
 
     @pyqtSlot()
     def update_button_clicked(self) -> None:
@@ -605,6 +685,7 @@ class SettingsWindow(QWidget):
         self.lineedit_dbhost.setText(settings.DB_HOST)
         self.spinbox_port.setValue(settings.DB_PORT)
         self.checkbox_bugreport.setChecked(settings.BUG_REPORT)
+        self.checkbox_realtime_chart.setChecked(settings.REAL_TIME_CHART)
         self.fps_spinbox.setValue(settings.FPS)
 
     @pyqtSlot()
@@ -619,6 +700,7 @@ class SettingsWindow(QWidget):
         settings.DB_HOST = self.lineedit_dbhost.text()
         settings.DB_PORT = self.spinbox_port.value()
         settings.BUG_REPORT = self.checkbox_bugreport.isChecked()
+        settings.REAL_TIME_CHART = self.checkbox_realtime_chart.isChecked()
         settings.COM_PORT = self.combobox_serialport.currentText()
         settings.FPS = self.fps_spinbox.value()
         data: dict = settings.as_dict()
@@ -662,7 +744,16 @@ class MainWindow(QMainWindow):
         self.fnumber_lineedit.setText(
             settings.PREVIOUS_FACTORY_NUMBER
         )
+        self.freq_spinbox.setValue(settings.START_FREQUENCY)
+        self.range_spinbox.setValue(settings.RANGE)
+        self.step_spinbox.setValue(settings.STEP)
+
         self.devicemodel_combobox.addItems(self.db.get_models_pg())
+        self.composition_combobox.addItems(cts.COMPOSITION)
+        index = self.composition_combobox.findText(
+            settings.PREVIOUS_COMPOSITION)
+        self.composition_combobox.setCurrentIndex(index)
+
         self.connect_pixmap = set_pixmap('icons/connect.png')
         self.disconnect_pixmap = set_pixmap('icons/disconnect.png')
         self.online_pixmap = set_pixmap('icons/online.png')
@@ -739,6 +830,17 @@ class MainWindow(QMainWindow):
                 tabwidget=self.tabwidget,
                 record=record,
             )
+            # Если выгружаемая запись не пуста
+            if record.data is None:
+                self.terminal_msg(
+                    f'Не удалось загрузить запись: {title}. '
+                    'Некорректный тип данных.')
+                continue
+            # От локальной и удаленной БД поступают разные типы данных
+            # record.data. Преобразуем при необходимости в Memoryview.
+            if not isinstance(record.data, memoryview):
+                record.data = memoryview(record.data)
+
             data = MeasuredValues(
                 **json.loads(record.data.tobytes(), use_decimal=True)
             )
@@ -747,6 +849,17 @@ class MainWindow(QMainWindow):
             self.tabwidget.addTab(self.plottab.page, title)
             self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
             self.storage[self.plottab.page] = self.plottab
+
+            # Выводим основные параметры на экран
+            self.plottab.label_frequency.setText(
+                f"F = {record.frequency} Гц")
+            self.plottab.label_resistance.setText(
+                f"R = {record.resistance} Ом")
+            self.plottab.label_quality_factor.setText(
+                f"Q = {record.quality_factor}")
+            if record.composition:
+                self.plottab.label_composition.setText(
+                    f"Сборка - {record.composition}")
 
     @pyqtSlot(bool)
     def toggle_serial_interface(self, status: bool) -> None:
@@ -793,7 +906,8 @@ class MainWindow(QMainWindow):
             self.upload_window.hide()
             return
         pg_db_status = self.db.check_pg_db()
-        self.upload_window.update_window_widgets(plottab.record, plottab.data, pg_db_status)
+        self.upload_window.update_window_widgets(
+            plottab.record, plottab.data, pg_db_status)
         self.upload_window.show()
 
     @pyqtSlot()
@@ -805,6 +919,10 @@ class MainWindow(QMainWindow):
             self.start_transfer()
         else:
             self.stop_transfer()
+        settings.PREVIOUS_COMPOSITION = self.composition_combobox.currentText()
+        settings.PREVIOUS_DEVICE_MODEL = (
+            self.devicemodel_combobox.currentText())
+        settings.PREVIOUS_FACTORY_NUMBER = self.fnumber_lineedit.text()
 
     def start_transfer(self):
         """Начало передачи данных."""
@@ -815,8 +933,8 @@ class MainWindow(QMainWindow):
         self.toggle_serial_interface(False)
         self.terminal_msg(
             f'Передача данных в диапазоне {freq_list[0]} - '
-            f'{freq_list[-1]} с шагом '
-            f'{self.step_spinbox.value()}'
+            f'{ceil(freq_list[-1])} с шагом '
+            f'{round(self.step_spinbox.value(), 2)}'
         )
 
         factory_number = self.fnumber_lineedit.text()
@@ -836,15 +954,38 @@ class MainWindow(QMainWindow):
         self.terminal_msg('Передача данных завершена')
         self.serial_manager.stop_data_transfer()
         self.plot_update_timer.stop()
+
+        # Если отрисовка в режиме реального времени
+        # отключена, то отрисовываем график при завершении
+        # передачи данных.
+        if settings.REAL_TIME_CHART is False:
+            self.plot_update_worker.draw(self.plottab)
         # не красиво, попробовать переделать
         try:
             self.plot_update_timer.disconnect()
         except TypeError:
             pass
 
+        # Производим расчет параметров и обновляем данные записи
+        index = self.tabwidget.currentIndex()
+        page = self.tabwidget.widget(index)
+        plottab = self.storage.get(page)
+        stat = calc_stat(plottab.data)
+        if stat:
+            plottab.record.frequency = stat['F']
+            plottab.record.resistance = stat['R']
+            plottab.record.quality_factor = stat['Q']
+            plottab.record.composition = (
+                self.composition_combobox.currentText())
+            plottab.label_frequency.setText(f"F = {stat['F']} Гц")
+            plottab.label_resistance.setText(f"R = {stat['R']} Ом")
+            plottab.label_quality_factor.setText(f"Q = {stat['Q']}")
+            plottab.label_composition.setText(
+                f"Сборка - {plottab.record.composition}")
+
     def create_tab(self, factory_number: str, device_model_title: str, username: str):  # noqa
         """Создает новую вкладку QTabwidget и соответствующий объект с
-        графиками. Устанавливает связь между полученрием данных от
+        графиками. Устанавливает связь между получением данных от
         COM-порта и методом объекта plottab."""
         device_model = self.db.get_model_by_title(device_model_title)
         user = self.db.get_user_by_username(username)
@@ -861,9 +1002,12 @@ class MainWindow(QMainWindow):
         )
 
         self.serial_manager.signal_send_data.connect(self.plottab.get_data)
-        self.plot_update_timer.setInterval(int(1000 / settings.FPS))
-        self.plot_update_timer.timeout.connect(lambda: self.plot_update_worker.draw(self.plottab))  # noqa
-        self.plot_update_timer.start()
+        # Если отключена функция отрисовки в режиме реального времени, то
+        # не включаем таймеры отрисовки графика.
+        if settings.REAL_TIME_CHART is True:
+            self.plot_update_timer.setInterval(int(1000 / settings.FPS))
+            self.plot_update_timer.timeout.connect(lambda: self.plot_update_worker.draw(self.plottab))  # noqa
+            self.plot_update_timer.start()
 
         date_str = record.date.strftime('%H:%M:%S')
         tab_title = f'{date_str} - {factory_number}'
@@ -989,6 +1133,14 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     def closeEvent(self, event):  # noqa
         """Закрываем дополнительные окна при закрытии основного."""
+        # Запоминаем параметры перед закрытием
+        settings.START_FREQUENCY = self.freq_spinbox.value()
+        settings.RANGE = self.range_spinbox.value()
+        settings.STEP = self.step_spinbox.value()
+
+        data: dict = settings.as_dict()
+        loaders.write('settings.toml', DynaBox(data).to_dict())
+
         self.plot_update_thread.quit()
         self.plot_update_thread.wait()
         if self.settings_window:
@@ -1001,7 +1153,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def terminal_msg(self, message: str) -> None:
         """Добавляем текущее время и текст в терминал."""
-        current_time: str = datetime.now().time().strftime('%H:%M')
+        current_time: str = datetime.now().time().strftime('%H:%M:%S')
         self.terminal.append(f'{current_time} - {message}')
 
 

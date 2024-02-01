@@ -48,6 +48,53 @@
     </layout>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_4">
+     <item>
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>Сборка</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="composition_combobox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>150</width>
+         <height>0</height>
+        </size>
+       </property>
+       <item>
+        <property name="text">
+         <string>П</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>ПК</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>ПКИ</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Неизвестно</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
       <widget class="QLabel" name="label_2">

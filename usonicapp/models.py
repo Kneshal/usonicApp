@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
-                    ForeignKeyField, Model, TextField)
+                    ForeignKeyField, IntegerField, Model, TextField)
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
 
 
@@ -101,9 +101,36 @@ class Record(BaseModel):
     )
     data = BlobField(
         verbose_name='Массив данных',
-        help_text='подключите массив данных',
+        help_text='Подключите массив данных',
         null=True,
     )
+    frequency = IntegerField(
+        verbose_name='Резонансная частота',
+        help_text='Укажите резонансную частоту',
+        default=0,
+    )
+    resistance = IntegerField(
+        verbose_name='Сопротивление',
+        help_text='Укажите сопротивление',
+        default=0,
+    )
+    quality_factor = IntegerField(
+        verbose_name='Добротность',
+        help_text='Укажите добротность',
+        default=0,
+    )
+    composition = CharField(
+        verbose_name='Сборка',
+        help_text='Укажите состав сборки',
+        max_length=40,
+        null=True,
+    )
+
+    # local = BooleanField(
+    #     verbose_name='База данных',
+    #     help_text='Укажите тип базы данных',
+    #     default=True,
+    # )
 
     class Meta:
         ordering = ['-date']

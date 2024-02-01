@@ -34,3 +34,10 @@ DEVICE_MODELS = [
     'title_1',
     'title_2'
 ]
+
+COMPOSITION = [
+    'П',
+    'ПК',
+    'ПКИ',
+    'Неизвестно',
+]

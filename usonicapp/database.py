@@ -1,18 +1,19 @@
 import os
 from dataclasses import asdict
 from datetime import datetime
-from typing import Callable, Union
+from typing import Union
 
 import constants as cts
 import simplejson as json
 from config import settings
 from models import DeviceModel, Record, User
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
-from PyQt5.QtCore import QObject, QTimer, pyqtBoundSignal, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
 basedir = os.path.dirname(__file__)
 
 # Может прописать декоратор на проверку подключения к бд
+
 
 class DataBase(QObject):
     """Класс описывает действующие базы данных и взаимодействие с ними."""
@@ -38,13 +39,14 @@ class DataBase(QObject):
         self.check_db_status()
         self.db_check_timer.start()
 
-    def upload_record(self, db, record, data) -> bool:
+    def upload_record(self, db, record, data=None) -> bool:
         """Загружает запись и связанные данные на сервер."""
         if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
             return False
         # add validation
-        encode_data = json.dumps(asdict(data), use_decimal=True)
-        record.data = encode_data
+        if data is not None:
+            encode_data = json.dumps(asdict(data), use_decimal=True)
+            record.data = encode_data
         result = record.save()
         # decode_data = json.loads(encode_data, use_decimal=True)
         if not result:
@@ -63,7 +65,7 @@ class DataBase(QObject):
         )
 
     @pyqtSlot()
-    def check_db_status(self) -> None:  # -> Union[Callable[..., None], pyqtBoundSignal]:
+    def check_db_status(self) -> None:
         """Изменение иконки доступности БД."""
         status = self.check_pg_db()
         self.pg_db_checked_signal.emit(status)
@@ -129,6 +131,7 @@ class DataBase(QObject):
 
         user = User.get_or_none(username=data.get('username'))
         device_model = DeviceModel.get_or_none(title=data.get('title'))
+        composition = data.get('composition')
 
         if not DataBase.record_data_validation(data, user, device_model):
             print('Validation failed')
@@ -136,6 +139,7 @@ class DataBase(QObject):
         Record.update(
             {
                 Record.device_model: device_model,
+                Record.composition: composition,
                 Record.user: user,
                 Record.factory_number: data.get('factory_number'),
                 Record.comment: data.get('comment'),
@@ -201,6 +205,36 @@ class DataBase(QObject):
             return True
         except OperationalError:
             return False
+
+    def sync_records(self, db, list_id) -> bool:
+        """Перенос данных из одной БД в другую."""
+        transfer_db = self.pg_db
+        if db == self.pg_db:
+            transfer_db = self.sqlite_db
+        # Получаем записи по id
+        records = [self.get_record(db, id) for id in list_id]
+
+        # Переносим данные в другую БД
+        transfer_db.connect()
+        with transfer_db.bind_ctx([Record]):
+            for record in records:
+                temp, created = Record.get_or_create(
+                    device_model=record.device_model,
+                    user=record.user,
+                    factory_number=record.factory_number,
+                    comment=record.comment,
+                    date=record.date,
+                    temporary=record.temporary,
+                    data=record.data,
+                    frequency=record.frequency,
+                    resistance=record.resistance,
+                    quality_factor=record.quality_factor,
+                    composition=record.composition,
+                )
+        transfer_db.close()
+
+        # Удаляем записи из прошлой БД
+        self.delete_records(db, list_id)
 
     def get_model_by_title(self, title) -> Union[DeviceModel, None]:
         """Возвращает объект DeviceModel по названию аппарата. Если в БД
