@@ -207,11 +207,22 @@
     </layout>
    </item>
    <item>
-    <widget class="QPushButton" name="button_save">
-     <property name="text">
-      <string>Сохранить</string>
-     </property>
-    </widget>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="button_save">
+       <property name="text">
+        <string>Сохранить</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="button_cancel">
+       <property name="text">
+        <string>Отмена</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>

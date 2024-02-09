@@ -16,7 +16,7 @@ from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
 from models import Record, generate_factory_number
 from peewee import PostgresqlDatabase, SqliteDatabase
-from plottab import PlotTab, PlotUpdateWorker
+from plottab import ComparePlotTab, PlotTab, PlotUpdateWorker
 from PyQt5 import uic
 from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
                           pyqtSignal, pyqtSlot)
@@ -274,6 +274,80 @@ class FilterWindow(QWidget):
         self.hide()
 
 
+class PasswordWindow(QWidget):
+    """Окно подтверждения действия паролем."""
+
+    def __init__(self, func, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.init_gui()
+        self.accept_button.clicked.connect(self.accept_button_clicked)
+        self.cancel_button.clicked.connect(self.cancel_button_clicked)
+        self.func = func
+
+    def init_gui(self):
+        """Настраиваем графический интерфейс."""
+        uic.loadUi(os.path.join(basedir, 'forms/password.ui'), self)
+        self.setWindowIcon(set_icon('icons/logo_password.png'))
+        self.setWindowTitle('Введите пароль')
+
+    @pyqtSlot()
+    def accept_button_clicked(self) -> None:
+        """Слот нажатия кнопки подтверждения пароля."""
+        if cts.PASSWORD == self.password_edit.text():
+            self.func()
+            return self.close()
+
+    @pyqtSlot()
+    def cancel_button_clicked(self) -> None:
+        """Слот нажатия кнопки отмены."""
+        self.close()
+
+
+class CompareModedWindow(QWidget):
+    """Окно выбора режима сравнения записей."""
+
+    def __init__(self, records, tabwidget, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.records = records
+        self.tabwidget = tabwidget
+        self.init_gui()
+        self.accept_button.clicked.connect(self.accept_button_clicked)
+        self.cancel_button.clicked.connect(self.cancel_button_clicked)
+
+    def init_gui(self):
+        """Настраиваем графический интерфейс."""
+        uic.loadUi(os.path.join(basedir, 'forms/compare_mode.ui'), self)
+        self.setWindowIcon(set_icon('icons/logo_compare_mode.png'))
+        self.setWindowTitle('Параметры сравнения')
+
+    @pyqtSlot()
+    def accept_button_clicked(self) -> None:
+        """Слот нажатия кнопки подтверждения."""
+        mode = []
+        if self.resistance_checkbox.isChecked():
+            mode.append("R")
+        if self.amperage_checkbox.isChecked():
+            mode.append("I")
+        if self.phase_checkbox.isChecked():
+            mode.append("Ph")
+
+        self.compare_plottab = ComparePlotTab(
+            tabwidget=self.tabwidget,
+            records=self.records,
+            mode=mode,
+        )
+        params = ', '.join(mode)
+        tab_title = f'Сравнение по параметрам: {params}'
+        self.tabwidget.addTab(self.compare_plottab.page, tab_title)
+        self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
+        self.close()
+
+    @pyqtSlot()
+    def cancel_button_clicked(self) -> None:
+        """Слот нажатия кнопки отмены."""
+        self.close()
+
+
 class TableWindow(QWidget):
     terminal_signal: pyqtSignal = pyqtSignal(str)
     donwload_records_signal: pyqtSignal = pyqtSignal(list)
@@ -401,7 +475,7 @@ class TableWindow(QWidget):
             [
                 'id',
                 '',
-                'Дата',
+                'Дата и время',
                 'Оператор',
                 'Состав',
                 'F, Гц',
@@ -449,7 +523,6 @@ class TableWindow(QWidget):
             table.setSpan(rowposition, 0, 1, 10)
             self.set_color_to_row(table, rowposition, color)
 
-            record: Record
             for record in records:
                 table.insertRow(table.rowCount())
                 # Скрытая ячейка с id записи
@@ -464,7 +537,7 @@ class TableWindow(QWidget):
                 table.setItem(row, 1, item)
                 # Ячейка с датой и временем
                 item = QTableWidgetItem(
-                    record.date.strftime('%m-%d-%Y %H:%M')
+                    record.date.strftime('%d-%m-%Y %H:%M')
                 )
                 item.setFlags(flag_selectable_enabled)
                 table.setItem(row, 2, item)
@@ -557,14 +630,26 @@ class TableWindow(QWidget):
         self.donwload_records_signal.emit(records)
         self.hide()
 
+    def check_selected_records(self) -> bool:
+        """Проверка - есть ли выделенные записи в текущей таблице"""
+        if self.get_current_selected_records():
+            return True
+        return False
+
     @pyqtSlot()
     def delete_button_clicked(self) -> None:
         """Слот нажатия кнопки удаления данных. Удаляет записи из БД и
         отправляет сообщение в терминал."""
+        if self.check_selected_records():
+            self.password_window: PasswordWindow = PasswordWindow(
+                self.delete_records)
+            self.password_window.show()
+
+    @pyqtSlot()
+    def delete_records(self) -> None:
+        """Удаление выделенных записей в текущей БД."""
         db: DataBase = self.get_current_db()
         list_id: list = self.get_current_selected_records()
-        if not list_id:
-            return
         result: bool = self.db.delete_records(db, list_id)
         if result:
             self.terminal_signal.emit(
@@ -578,23 +663,34 @@ class TableWindow(QWidget):
 
     @pyqtSlot()
     def sync_button_clicked(self) -> None:
-        """Слот нажатия кнопки переноса данных. Создает записи в другой
-        БД, удаляет записи из текущей БД и
+        """Слот нажатия кнопки переноса данных."""
+        if self.check_selected_records():
+            self.password_window: PasswordWindow = PasswordWindow(
+                self.sync_records)
+            self.password_window.show()
+
+    @pyqtSlot()
+    def sync_records(self) -> None:
+        """Создает записи в другой БД, удаляет записи из текущей БД и
         отправляет сообщение в терминал."""
         db: DataBase = self.get_current_db()
         list_id: list = self.get_current_selected_records()
-        print(db, list_id)
-        if not list_id:
-            return
         result: bool = self.db.sync_records(db, list_id)
         if result:
             self.terminal_signal.emit(
                 f'Записей перенесено: {len(list_id)}.'
             )
+            # Удаляем записи из прошлой БД
+            if self.db.delete_records(db, list_id) is False:
+                self.terminal_signal.emit(
+                    'Не удалось удалить записи из прошлой БД в '
+                    'процессе переноса.'
+                )
         else:
             self.terminal_signal.emit(
                 'Не удалось перенести записи из базы данных.'
             )
+
         self.update_tables()
 
     @pyqtSlot()
@@ -653,6 +749,7 @@ class SettingsWindow(QWidget):
         super().__init__(*args, **kwargs)
         self.init_gui()
         self.button_save.clicked.connect(self.save_button_clicked)
+        self.button_cancel.clicked.connect(self.cancel_button_clicked)
 
     def init_gui(self):
         """Настраиваем графический интерфейс."""
@@ -708,6 +805,11 @@ class SettingsWindow(QWidget):
         self.terminal_signal.emit('Настройки программы сохранены')
         self.change_settings_signal.emit()
         self.hide()
+
+    @pyqtSlot()
+    def cancel_button_clicked(self) -> None:
+        """Слот нажатия кнопки отмены."""
+        self.close()
 
 
 class MainWindow(QMainWindow):
@@ -1010,7 +1112,10 @@ class MainWindow(QMainWindow):
             self.plot_update_timer.start()
 
         date_str = record.date.strftime('%H:%M:%S')
-        tab_title = f'{date_str} - {factory_number}'
+        if self.temporary:
+            tab_title = f'{date_str} - временная запись'
+        else:
+            tab_title = f'{date_str} - {factory_number}'
         self.tabwidget.addTab(self.plottab.page, tab_title)
         self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
         self.storage[self.plottab.page] = self.plottab
@@ -1029,12 +1134,11 @@ class MainWindow(QMainWindow):
                     self.stop_transfer()
             self.tabwidget.removeTab(index)
             del self.storage[page]
-            # print(self.storage)
             return True
         except KeyError:
-            self.terminal_msg(
-                'Не удалось удалить запись из локального хранилища.'
-            )
+            # self.terminal_msg(
+            #     'Не удалось удалить запись из локального хранилища.'
+            # )
             return False
 
     @pyqtSlot(int)
@@ -1095,7 +1199,20 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     def compare_button_clicked(self) -> None:
         """Слот нажатия кнопки сравнения данных."""
-        print('Compare button is clicked!')
+        if not self.storage:
+            return self.terminal_msg(
+                'Для сравнения необходимо предварительно загрузить до '
+                '10 записей из базы данных.'
+            )
+        if len(self.storage) > 10:
+            return self.terminal_msg(
+                'Максимальное количество записей для сравнения: 10.'
+                'Закройте часть записей и повторите попытку.'
+            )
+        records = [value.record for value in self.storage.values()]
+        self.compare_mode_window: CompareModedWindow = CompareModedWindow(
+            records, self.tabwidget)
+        self.compare_mode_window.show()
 
     @pyqtSlot()
     def table_button_clicked(self) -> None:

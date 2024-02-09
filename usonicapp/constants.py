@@ -41,3 +41,20 @@ COMPOSITION = [
     'ПКИ',
     'Неизвестно',
 ]
+
+PASSWORD = "admin"
+
+COLORS = [
+    'Red',
+    'DarkOrange',
+    'Yellow',
+    'LawnGreen',
+    'Lime',
+    'Cyan',
+    'DodgerBlue',
+    'Blue',
+    'Magenta',
+    'DeepPink',
+]
+
+TABLE_ROW_HEIGHT = 25

@@ -42,12 +42,15 @@
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="delete_button">
+      <widget class="QToolButton" name="sync_button">
        <property name="minimumSize">
         <size>
          <width>20</width>
          <height>20</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>Перенести записи</string>
        </property>
        <property name="text">
         <string>...</string>
@@ -61,12 +64,15 @@
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="sync_button">
+      <widget class="QToolButton" name="delete_button">
        <property name="minimumSize">
         <size>
          <width>20</width>
          <height>20</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>Удалить записи</string>
        </property>
        <property name="text">
         <string>...</string>
@@ -171,6 +177,9 @@
          <width>50</width>
          <height>0</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>Заводской номер</string>
        </property>
        <property name="inputMask">
         <string>000.0000-0000</string>

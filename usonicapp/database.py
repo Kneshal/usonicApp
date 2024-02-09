@@ -215,26 +215,27 @@ class DataBase(QObject):
         records = [self.get_record(db, id) for id in list_id]
 
         # Переносим данные в другую БД
-        transfer_db.connect()
-        with transfer_db.bind_ctx([Record]):
-            for record in records:
-                temp, created = Record.get_or_create(
-                    device_model=record.device_model,
-                    user=record.user,
-                    factory_number=record.factory_number,
-                    comment=record.comment,
-                    date=record.date,
-                    temporary=record.temporary,
-                    data=record.data,
-                    frequency=record.frequency,
-                    resistance=record.resistance,
-                    quality_factor=record.quality_factor,
-                    composition=record.composition,
-                )
-        transfer_db.close()
-
-        # Удаляем записи из прошлой БД
-        self.delete_records(db, list_id)
+        try:
+            transfer_db.connect()
+            with transfer_db.bind_ctx([Record]):
+                for record in records:
+                    temp, created = Record.get_or_create(
+                        device_model=record.device_model,
+                        user=record.user,
+                        factory_number=record.factory_number,
+                        comment=record.comment,
+                        date=record.date,
+                        temporary=record.temporary,
+                        data=record.data,
+                        frequency=record.frequency,
+                        resistance=record.resistance,
+                        quality_factor=record.quality_factor,
+                        composition=record.composition,
+                    )
+            transfer_db.close()
+            return True
+        except OperationalError:
+            return False
 
     def get_model_by_title(self, title) -> Union[DeviceModel, None]:
         """Возвращает объект DeviceModel по названию аппарата. Если в БД
