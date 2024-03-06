@@ -14,15 +14,16 @@ from config import settings
 from database import DataBase
 from dynaconf import loaders
 from dynaconf.utils.boxing import DynaBox
-from models import Record, generate_factory_number
+from models import Record
 from peewee import PostgresqlDatabase, SqliteDatabase
 from plottab import ComparePlotTab, PlotTab, PlotUpdateWorker
 from PyQt5 import uic
 from PyQt5.QtCore import (QDate, QModelIndex, QSize, Qt, QThread, QTimer,
                           pyqtSignal, pyqtSlot)
 from PyQt5.QtGui import QColor, QIcon, QPixmap
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QMainWindow,
-                             QTableWidget, QTableWidgetItem, QWidget)
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QHeaderView, QLabel,
+                             QMainWindow, QTableWidget, QTableWidgetItem,
+                             QWidget)
 from serialport import MeasuredValues, SerialPortManager
 from widgets import CellCheckbox, EditToolButton
 
@@ -54,22 +55,29 @@ class UploadWindow(QWidget):
         uic.loadUi(os.path.join(basedir, 'forms/upload.ui'), self)
         self.setWindowIcon(set_icon('icons/logo_upload.png'))
         self.setWindowTitle('Загрузить запись')
+        self.series_combobox.clear()
+        self.series_combobox.addItems(cts.DEVICE_MODELS.keys())
+        self.device_model_update()
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
         self.upload_button.clicked.connect(self.upload_button_clicked)
+        self.series_combobox.currentIndexChanged.connect(
+            self.device_model_update)
 
     @pyqtSlot(dict)
     def update_window_widgets(self, record: Record, data: MeasuredValues, pg_db_status: bool) -> None:  # noqa
         """Заполнение виджетов."""
         self.record: Record = record
         self.data: MeasuredValues = data
-        titles: list = self.db_manager.get_models_pg()
-        self.title_combobox.clear()
-        self.title_combobox.addItems(titles)
-        index: int = self.title_combobox.findText(
-            self.record.device_model.title)
-        self.title_combobox.setCurrentIndex(index)
+
+        index: int = self.series_combobox.findText(
+            self.record.series)
+        self.series_combobox.setCurrentIndex(index)
+
+        index: int = self.devicemodel_combobox.findText(
+            self.record.device_model)
+        self.devicemodel_combobox.setCurrentIndex(index)
 
         index = self.composition_combobox.findText(
             self.record.composition)
@@ -82,12 +90,22 @@ class UploadWindow(QWidget):
             self.fnumber_lineedit.setVisible(False)
             self.label_2.setVisible(False)
         else:
+            self.pg_radiobutton.setVisible(True)
             self.fnumber_lineedit.setText(self.record.factory_number)
             self.pg_radiobutton.setEnabled(pg_db_status)
             if pg_db_status:
                 self.pg_radiobutton.setChecked(True)
             else:
                 self.sqlite_radiobutton.setChecked(True)
+
+    @pyqtSlot()
+    def device_model_update(self) -> None:
+        """Событие обновления combobox с серией аппарата."""
+        self.devicemodel_combobox.clear()
+        series = self.series_combobox.currentText()
+        row_models = cts.DEVICE_MODELS.get(series)
+        models = [item.get('name') for item in row_models]
+        self.devicemodel_combobox.addItems(sorted(models))
 
     def upload_button_clicked(self) -> None:
         """Нажатие кнопки загрузки записи в БД."""
@@ -98,12 +116,13 @@ class UploadWindow(QWidget):
 
         factory_number = self.fnumber_lineedit.text()
         if self.record.temporary:
-            factory_number = generate_factory_number()
+            factory_number = self.db_manager.generate_factory_number(db)
 
-        title = self.title_combobox.currentText()
-        device_model = self.db_manager.get_model_by_title(title)
+        series = self.series_combobox.currentText()
+        device_model = self.devicemodel_combobox.currentText()
         composition = self.composition_combobox.currentText()
         self.record.factory_number = factory_number
+        self.record.series = series
         self.record.device_model = device_model
         self.record.composition = composition
         self.record.comment = self.comment_textedit.toPlainText()
@@ -134,11 +153,28 @@ class EditRecordWindow(QWidget):
         uic.loadUi(os.path.join(basedir, 'forms/edit_record.ui'), self)
         self.setWindowIcon(set_icon('icons/logo_edit.png'))
         self.setWindowTitle('Редактировать запись')
+        self.user_combobox.clear()
+        self.user_combobox.addItems(cts.USERS)
+
+        self.series_combobox.clear()
+        self.series_combobox.addItems(cts.DEVICE_MODELS.keys())
+        self.device_model_update()
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
         self.save_button.clicked.connect(self.save_button_clicked)
         self.cancel_button.clicked.connect(self.cancel_button_clicked)
+        self.series_combobox.currentIndexChanged.connect(
+            self.device_model_update)
+
+    @pyqtSlot()
+    def device_model_update(self) -> None:
+        """Событие обновления combobox с серией аппарата."""
+        self.devicemodel_combobox.clear()
+        series = self.series_combobox.currentText()
+        row_models = cts.DEVICE_MODELS.get(series)
+        models = [item.get('name') for item in row_models]
+        self.devicemodel_combobox.addItems(sorted(models))
 
     def show_window(self, table: QTableWidget, db, id: str) -> None:
         """Делает окно видимым и заполняет виджеты данными
@@ -148,26 +184,24 @@ class EditRecordWindow(QWidget):
         self.datetimeedit.setDateTime(self.record.date)
         self.factorynumber_lineedit.setText(self.record.factory_number)
 
-        usernames: list = self.db.get_users_pg()
-        self.user_combobox.clear()
-        self.user_combobox.addItems(usernames)
-        index_user: int = self.user_combobox.findText(
-            self.record.user.username)
-        self.user_combobox.setCurrentIndex(index_user)
+        index: int = self.user_combobox.findText(
+            self.record.user)
+        self.user_combobox.setCurrentIndex(index)
 
         index = self.composition_combobox.findText(
             self.record.composition)
         self.composition_combobox.setCurrentIndex(index)
 
-        device_model_titles: list = self.db.get_models_pg()
-        self.devicemodel_combobox.clear()
-        self.devicemodel_combobox.addItems(device_model_titles)
-        index_device: int = self.devicemodel_combobox.findText(
-            self.record.device_model.title
-        )
-        self.devicemodel_combobox.setCurrentIndex(index_device)
+        index: int = self.series_combobox.findText(
+            self.record.series)
+        self.series_combobox.setCurrentIndex(index)
+
+        index: int = self.devicemodel_combobox.findText(
+            self.record.device_model)
+        self.devicemodel_combobox.setCurrentIndex(index)
 
         self.comment_textedit.setText(self.record.comment)
+        self.temporary_checkbox.setChecked(self.record.temporary)
 
         self.current_db = db
         self.activateWindow()
@@ -180,11 +214,13 @@ class EditRecordWindow(QWidget):
         if self.current_db is None:
             return
         data: dict = {
-            'title': self.devicemodel_combobox.currentText(),
+            'series': self.series_combobox.currentText(),
+            'device_model': self.devicemodel_combobox.currentText(),
             'composition': self.composition_combobox.currentText(),
-            'username': self.user_combobox.currentText(),
+            'user': self.user_combobox.currentText(),
             'factory_number': self.factorynumber_lineedit.text(),
             'comment': self.comment_textedit.toPlainText(),
+            'temporary': self.temporary_checkbox.isChecked(),
         }
         result = self.db.update_record(self.current_db, self.record.id, data)
         if result:
@@ -225,28 +261,37 @@ class FilterWindow(QWidget):
         self.dateedit_1.setDate(current_date)
         self.dateedit_2.setDate(current_date)
         self.user_checkbox.setChecked(True)
+
+        series: list = list(cts.DEVICE_MODELS.keys())
+        self.series_combobox.clear()
+        self.series_combobox.addItems(series)
+        self.device_model_update()
+
         self.update_widget()
 
     def init_signals(self) -> None:
         """Подключаем сигналы к слотам."""
         self.apply_button.clicked.connect(self.apply_button_clicked)
         self.cancel_button.clicked.connect(self.cancel_button_clicked)
+        self.series_combobox.currentIndexChanged.connect(
+            self.device_model_update)
 
     @pyqtSlot()
     def update_widget(self) -> None:
         """Обновляем виджет."""
-        users: list = self.db.get_users_pg()  # Заменить на выбор БД
         self.user_combobox.clear()
-        self.user_combobox.addItems(users)
+        self.user_combobox.addItems(cts.USERS)
         index: int = self.user_combobox.findText(settings.OPERATOR)
-        if index == -1:
-            self.user_combobox.insertItem(0, settings.OPERATOR)
-            self.user_combobox.setCurrentIndex(0)
-        else:
-            self.user_combobox.setCurrentIndex(index)
-        device_models: list = self.db.get_models_pg()  # Заменить на выбор БД
+        self.user_combobox.setCurrentIndex(index)
+
+    @pyqtSlot()
+    def device_model_update(self) -> None:
+        """Событие обновления combobox с серией аппарата."""
         self.devicemodel_combobox.clear()
-        self.devicemodel_combobox.addItems(device_models)
+        series = self.series_combobox.currentText()
+        row_models = cts.DEVICE_MODELS.get(series)
+        models = [item.get('name') for item in row_models]
+        self.devicemodel_combobox.addItems(sorted(models))
 
     @pyqtSlot()
     def get_filter_settings(self) -> dict:
@@ -254,6 +299,8 @@ class FilterWindow(QWidget):
         result: dict = {}
         if self.user_checkbox.isChecked():
             result['user'] = self.user_combobox.currentText()
+        if self.series_checkbox.isChecked():
+            result['series'] = self.series_combobox.currentText()
         if self.devicemodel_checkbox.isChecked():
             result['devicemodel'] = self.devicemodel_combobox.currentText()
         if self.date_checkbox.isChecked():
@@ -470,10 +517,11 @@ class TableWindow(QWidget):
         )
         table.clearContents()
         table.setRowCount(0)
-        table.setColumnCount(10)
+        table.setColumnCount(11)
         table.setHorizontalHeaderLabels(
             [
                 'id',
+                '',
                 '',
                 'Дата и время',
                 'Оператор',
@@ -495,8 +543,10 @@ class TableWindow(QWidget):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(
+            10, QHeaderView.ResizeMode.ResizeToContents)
 
         color_flag: bool = False
         gray: QColor = QColor(128, 128, 128)
@@ -515,12 +565,13 @@ class TableWindow(QWidget):
             rowposition: int = table.rowCount()
             table.insertRow(rowposition)
             row += 1
+
             # Объединяем ячейки и выводим номер аппарата и модель
             item: QTableWidgetItem = QTableWidgetItem(title)
             item.setFlags(flag_selectable_enabled)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            # item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(rowposition, 0, item)
-            table.setSpan(rowposition, 0, 1, 10)
+            table.setSpan(rowposition, 0, 1, 11)
             self.set_color_to_row(table, rowposition, color)
 
             for record in records:
@@ -528,43 +579,47 @@ class TableWindow(QWidget):
                 # Скрытая ячейка с id записи
                 item = QTableWidgetItem(str(record.id))
                 table.setItem(row, 0, item)
+                # Ячейка с фото
+                item = QTableWidgetItem()
+                table.setItem(row, 1, item)
                 # Ячейка с checkbox
                 checkboxwidget: CellCheckbox = CellCheckbox(
                     self, str(record.id)
                 )
-                table.setCellWidget(row, 1, checkboxwidget)
+                table.setCellWidget(row, 2, checkboxwidget)
                 item = QTableWidgetItem()
-                table.setItem(row, 1, item)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, 2, item)
                 # Ячейка с датой и временем
                 item = QTableWidgetItem(
                     record.date.strftime('%d-%m-%Y %H:%M')
                 )
                 item.setFlags(flag_selectable_enabled)
-                table.setItem(row, 2, item)
+                table.setItem(row, 3, item)
                 # Ячейка с именем пользователя
-                item = QTableWidgetItem(record.user.username)
+                item = QTableWidgetItem(record.user)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 3, item)
+                table.setItem(row, 4, item)
                 # Ячейка с комплектацией УЗКС
                 item = QTableWidgetItem(record.composition)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 4, item)
+                table.setItem(row, 5, item)
                 # Ячейка с резонансной частотой
                 frequence = (
                     str(record.frequency) if record.frequency != 0 else '')
                 item = QTableWidgetItem(frequence)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 5, item)
+                table.setItem(row, 6, item)
                 # Ячейка с сопротивлением
                 resistance = (
                     str(record.resistance) if record.resistance != 0 else '')
                 item = QTableWidgetItem(resistance)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 6, item)
+                table.setItem(row, 7, item)
                 # Ячейка с добротность
                 quality_factor = (
                     str(record.quality_factor) if record.quality_factor != 0
@@ -572,22 +627,58 @@ class TableWindow(QWidget):
                 item = QTableWidgetItem(quality_factor)
                 item.setFlags(flag_selectable_enabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 7, item)
+                table.setItem(row, 8, item)
                 # Ячейка с комментарием
                 item = QTableWidgetItem(record.comment)
                 item.setFlags(flag_selectable_enabled)
-                table.setItem(row, 8, item)
+                table.setItem(row, 9, item)
                 # Ячейка с иконкой изменения
                 item = QTableWidgetItem()
                 edit_button: EditToolButton = EditToolButton(
                     self.edit_record_window, table, db, str(record.id)
                 )
                 item.setFlags(flag_selectable_enabled)
-                table.setItem(row, 9, item)
-                table.setCellWidget(row, 9, edit_button)
+                table.setItem(row, 10, item)
+                table.setCellWidget(row, 10, edit_button)
 
                 self.set_color_to_row(table, row, color)
                 row += 1
+
+            # Ячейка с фото
+            record: Record = records[0]
+            models: list = cts.DEVICE_MODELS.get(record.series)
+            image_path: str = ''
+            for model in models:
+                if record.device_model == model.get('name'):
+                    image_path = model.get('img')
+
+            # Создаем изображение
+            label = QLabel(self)
+            pixmap = QPixmap(image_path)
+            label.setPixmap(pixmap)
+            label.setAlignment(Qt.AlignmentFlag.AlignTop)
+            table.setCellWidget(rowposition + 1, 1, label)
+            item = QTableWidgetItem()
+            table.setItem(rowposition + 1, 1, item)
+            table.item(rowposition + 1, 1).setBackground(QColor(255, 255, 255))
+
+            # Добавляем строки, если записей мало, чтобы картинка отображалась
+            # корректно
+            add_rows = 0
+
+            if len(records) < 5:
+                add_rows = 5 - len(records)
+                for i in range(0, add_rows):
+                    table.insertRow(table.rowCount())
+                    item: QTableWidgetItem = QTableWidgetItem()
+                    table.setItem(row, 2, item)
+                    self.set_color_to_row(table, row, color)
+                    row += 1
+                table.setSpan(row - add_rows, 2, add_rows, 9)
+            # Объединяем ячейки для отображения картинки
+            # if len(records) >= 1:
+            table.setSpan(rowposition + 1, 1, len(records) + add_rows, 1)
+
             color_flag = not color_flag
 
     def update_tables(self) -> None:
@@ -757,10 +848,10 @@ class SettingsWindow(QWidget):
         self.setWindowIcon(set_icon('icons/logo_settings.png'))
         self.setWindowTitle('Настройки')
 
-    def update_window_widgets(self, users: list, serial_ports: list) -> None:
+    def update_window_widgets(self, serial_ports: list) -> None:
         """Обновляем данные виджетов окна настроек."""
         self.combobox_user.clear()
-        self.combobox_user.addItems(users)
+        self.combobox_user.addItems(cts.USERS)
         index: int = self.combobox_user.findText(settings.OPERATOR)
         if index != -1:
             self.combobox_user.setCurrentIndex(index)
@@ -850,7 +941,9 @@ class MainWindow(QMainWindow):
         self.range_spinbox.setValue(settings.RANGE)
         self.step_spinbox.setValue(settings.STEP)
 
-        self.devicemodel_combobox.addItems(self.db.get_models_pg())
+        self.series_combobox.addItems(sorted(cts.DEVICE_MODELS.keys()))
+        self.device_model_update()
+        # self.devicemodel_combobox.addItems(self.db.get_models_pg())
         self.composition_combobox.addItems(cts.COMPOSITION)
         index = self.composition_combobox.findText(
             settings.PREVIOUS_COMPOSITION)
@@ -921,6 +1014,9 @@ class MainWindow(QMainWindow):
         self.tabwidget.currentChanged.connect(self.toggle_upload_button_status)
         # Окно загрузки
         self.upload_window.terminal_signal.connect(self.terminal_msg)
+        # Combobox с моделями
+        self.series_combobox.currentIndexChanged.connect(
+            self.device_model_update)
 
     @pyqtSlot(list)
     def download_records(self, records) -> None:
@@ -967,7 +1063,7 @@ class MainWindow(QMainWindow):
     def toggle_serial_interface(self, status: bool) -> None:
         """Меняем состояние виджетов COM-порта."""
         self.temp_button.setEnabled(status)
-        self.devicemodel_combobox.setEnabled(status)
+        # self.devicemodel_combobox.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
@@ -1040,12 +1136,14 @@ class MainWindow(QMainWindow):
         )
 
         factory_number = self.fnumber_lineedit.text()
-        device_model_title = self.devicemodel_combobox.currentText()
-        username = settings.OPERATOR
+        device_model = self.devicemodel_combobox.currentText()
+        series = self.series_combobox.currentText()
+        user = settings.OPERATOR
         self.create_tab(
             factory_number=factory_number,
-            device_model_title=device_model_title,
-            username=username,
+            device_model=device_model,
+            series=series,
+            user=user,
             )
         self.serial_manager.start_data_transfer(freq_list)
 
@@ -1085,13 +1183,12 @@ class MainWindow(QMainWindow):
             plottab.label_composition.setText(
                 f"Сборка - {plottab.record.composition}")
 
-    def create_tab(self, factory_number: str, device_model_title: str, username: str):  # noqa
+    def create_tab(self, factory_number: str, series: str, device_model: str, user: str):  # noqa
         """Создает новую вкладку QTabwidget и соответствующий объект с
         графиками. Устанавливает связь между получением данных от
         COM-порта и методом объекта plottab."""
-        device_model = self.db.get_model_by_title(device_model_title)
-        user = self.db.get_user_by_username(username)
         record = Record(
+            series=series,
             device_model=device_model,
             user=user,
             factory_number=factory_number,
@@ -1159,7 +1256,7 @@ class MainWindow(QMainWindow):
         else:
             self.comport_label.setPixmap(self.disconnect_pixmap)
             self.startstop_button.setIcon(set_icon('icons/start_disabled'))
-            self.devicemodel_combobox.setEnabled(False)
+            # self.devicemodel_combobox.setEnabled(False)
         self.temp_button.setEnabled(status)
         self.startstop_button.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
@@ -1173,16 +1270,18 @@ class MainWindow(QMainWindow):
         заводской номер."""
         factory_number: str = self.fnumber_lineedit.text()
         if len(factory_number) != 13:
-            self.devicemodel_combobox.setEnabled(False)
             return
-        title: str = self.db.get_device_model_title_by_fnumber(
+        series: str = self.db.get_series_by_fnumber(
             factory_number=factory_number)
-        if title is None:
-            self.devicemodel_combobox.setEnabled(True)
+        device_model: str = self.db.get_device_model_title_by_fnumber(
+            factory_number=factory_number)
+        print(series, device_model)
+        if series is None or device_model is None:
             return
-        index: int = self.devicemodel_combobox.findText(title)
+        index: int = self.series_combobox.findText(series)
+        self.series_combobox.setCurrentIndex(index)
+        index: int = self.devicemodel_combobox.findText(device_model)
         self.devicemodel_combobox.setCurrentIndex(index)
-        self.devicemodel_combobox.setEnabled(False)
 
     @pyqtSlot()
     def settings_button_clicked(self) -> None:
@@ -1191,9 +1290,8 @@ class MainWindow(QMainWindow):
         if self.settings_window.isVisible():
             self.settings_window.hide()
             return
-        users: list = self.db.get_users_pg()
         serial_ports: list = self.serial_manager.get_available_port_names()
-        self.settings_window.update_window_widgets(users, serial_ports)
+        self.settings_window.update_window_widgets(serial_ports)
         self.settings_window.show()
 
     @pyqtSlot()
@@ -1204,10 +1302,9 @@ class MainWindow(QMainWindow):
                 'Для сравнения необходимо предварительно загрузить до '
                 '10 записей из базы данных.'
             )
-        if len(self.storage) > 10:
+        if len(self.storage) > 10 or len(self.storage) < 2:
             return self.terminal_msg(
-                'Максимальное количество записей для сравнения: 10.'
-                'Закройте часть записей и повторите попытку.'
+                'Для сравнения необходимо от 2 до 10 записей.'
             )
         records = [value.record for value in self.storage.values()]
         self.compare_mode_window: CompareModedWindow = CompareModedWindow(
@@ -1240,12 +1337,21 @@ class MainWindow(QMainWindow):
             self.temp_button.setIcon(set_icon('icons/temp_on.png'))
             self.label.setVisible(False)
             self.fnumber_lineedit.setVisible(False)
-            self.devicemodel_combobox.setEnabled(True)
+            # self.devicemodel_combobox.setEnabled(True)
         else:
             self.temp_button.setIcon(set_icon('icons/temp_off.png'))
             self.label.setVisible(True)
             self.fnumber_lineedit.setVisible(True)
             self.search_model_by_fnumber()
+
+    @pyqtSlot()
+    def device_model_update(self) -> None:
+        """Событие обновления combobox с серией аппарата."""
+        self.devicemodel_combobox.clear()
+        series = self.series_combobox.currentText()
+        row_models = cts.DEVICE_MODELS.get(series)
+        models = [item.get('name') for item in row_models]
+        self.devicemodel_combobox.addItems(sorted(models))
 
     @pyqtSlot()
     def closeEvent(self, event):  # noqa

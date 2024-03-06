@@ -1,21 +1,8 @@
 from datetime import datetime
 
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
-                    ForeignKeyField, IntegerField, Model, TextField)
+                    IntegerField, Model, TextField)
 from playhouse.shortcuts import ThreadSafeDatabaseMetadata
-
-
-def generate_factory_number():
-    """Генерация нового заводского номера."""
-    obj, created = FactoryNumber.get_or_create()
-    if not created:
-        number = obj.number
-        prefix = number[:3]
-        value = int(number[3:]) + 1
-        result = prefix + str(value)
-        obj.number = result
-        obj.save()
-    return obj.number
 
 
 class BaseModel(Model):
@@ -37,45 +24,24 @@ class FactoryNumber(BaseModel):
         return self.number
 
 
-class User(BaseModel):
-    """Модель пользователя."""
-    username = CharField(
+class Record(BaseModel):
+    """Модель, описывающая записи о проведенных измерениях."""
+    user = CharField(
         verbose_name='Пользователь',
         help_text='Укажите пользователя',
         max_length=50,
-        unique=True
     )
-
-    def __str__(self):
-        return self.username
-
-
-class DeviceModel(BaseModel):
-    """Модель, описывающая типы аппаратов."""
-    title = CharField(
+    device_model = CharField(
         verbose_name='Модель аппарата',
         help_text='Укажите модель аппарата',
-        max_length=200,
-        unique=True
+        max_length=50,
+        # default='УЗТА-0,4/22-ОМ (1)',
     )
-
-    def __str__(self):
-        return self.title
-
-
-class Record(BaseModel):
-    """Модель, описывающая записи о проведенных измерениях."""
-    device_model = ForeignKeyField(
-        DeviceModel,
-        verbose_name='Модель аппарата',
-        help_text='Укажите модель аппарата',
-        backref='records'
-    )
-    user = ForeignKeyField(
-        User,
-        verbose_name='Пользователь',
-        help_text='Укажите пользователя',
-        backref='records'
+    series = CharField(
+        verbose_name='Серия аппарата',
+        help_text='Укажите серию аппарата',
+        max_length=15,
+        # default='Волна',
     )
     factory_number = CharField(
         verbose_name='Заводской номер',

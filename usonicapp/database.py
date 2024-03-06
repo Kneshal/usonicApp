@@ -1,12 +1,11 @@
 import os
 from dataclasses import asdict
 from datetime import datetime
-from typing import Union
 
 import constants as cts
 import simplejson as json
 from config import settings
-from models import DeviceModel, Record, User
+from models import FactoryNumber, Record
 from peewee import OperationalError, PostgresqlDatabase, SqliteDatabase
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
@@ -41,7 +40,7 @@ class DataBase(QObject):
 
     def upload_record(self, db, record, data=None) -> bool:
         """Загружает запись и связанные данные на сервер."""
-        if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
+        if not self.connect_and_bind_models(db, [Record]):
             return False
         # add validation
         if data is not None:
@@ -87,19 +86,22 @@ class DataBase(QObject):
         record = self.get_record(factory_number=factory_number)
         if record is None:
             return None
-        return record.device_model.title
+        return record.device_model
 
-    def get_record(self, db = None, id = None, factory_number = None) -> Record:  # noqa  -> Record | None
+    def get_series_by_fnumber(self, factory_number: str):  # noqa  -> str | None
+        """Возвращает название серии аппарата по указанной записи."""
+        record = self.get_record(factory_number=factory_number)
+        if record is None:
+            return None
+        return record.series
+
+    def get_record(self, db=None, id=None, factory_number=None) -> Record:  # noqa  -> Record | None
         """Возвращает запись с заданным id из указанной БД."""
         if db is None:
             db = self.get_ready_db()
         if not self.connect_and_bind_models(db, [Record]):
             return None
-        query = (Record
-                 .select(Record, User, DeviceModel)
-                 .join(User)
-                 .switch(Record)
-                 .join(DeviceModel))
+        query = (Record.select(Record))
         if id:
             record: Record = (query
                               .where(Record.id == id)
@@ -111,38 +113,59 @@ class DataBase(QObject):
         self.close(db)
         return record
 
+    def generate_factory_number(self, db=None) -> str:
+        """Генерация нового заводского номера."""
+        if not self.connect_and_bind_models(db, [FactoryNumber]):
+            return None
+        obj, created = FactoryNumber.get_or_create()
+        if not created:
+            number = obj.number
+            prefix = number[:3]
+            value = int(number[3:]) + 1
+            result = prefix + str(value)
+            obj.number = result
+            obj.save()
+        self.close(db)
+        return obj.number
+
     @staticmethod
-    def record_data_validation(data, user, device_model):  # -> dict | None
+    def record_data_validation(data):  # -> dict | None
         """Валидация входящих данных для записи."""
-        username = data.get('username')
+        user = data.get('user')
+        device_model = data.get('device_model')
+        series = data.get('series')
         factory_number = data.get('factory_number')
-        title = data.get('title')
-        if ((not username or not factory_number or not title)
-                or (user is None)
-                or (device_model is None)
-                or (len(factory_number) != 13)):
+        if ((not factory_number)
+                or (user is None) or (user == '')
+                or (device_model is None) or (device_model == '')
+                or (series is None) or (series == '')):
             return None
         return data
 
     def update_record(self, db, id: int, data: dict) -> bool:  # noqa
         """Обновляем запись в заданной БД."""
-        if not self.connect_and_bind_models(db, [Record, User, DeviceModel]):
+        if not self.connect_and_bind_models(db, [Record,]):
             return False
 
-        user = User.get_or_none(username=data.get('username'))
-        device_model = DeviceModel.get_or_none(title=data.get('title'))
+        user = data.get('user')
+        series = data.get('series')
+        device_model = data.get('device_model')
         composition = data.get('composition')
+        temporary = data.get('temporary')
 
-        if not DataBase.record_data_validation(data, user, device_model):
+        if not DataBase.record_data_validation(data):
             print('Validation failed')
+            self.close(db)
             return False
         Record.update(
             {
+                Record.series: series,
                 Record.device_model: device_model,
                 Record.composition: composition,
                 Record.user: user,
                 Record.factory_number: data.get('factory_number'),
                 Record.comment: data.get('comment'),
+                Record.temporary: temporary,
             }
         ).where(Record.id == id).execute()
         self.close(db)
@@ -152,27 +175,23 @@ class DataBase(QObject):
         """Получаем список записей в соответствии с настройками фильтрации."""
         result: dict = {}
 
-        connection = self.connect_and_bind_models(
-            db, [Record, DeviceModel, User]
-        )
+        connection = self.connect_and_bind_models(db, [Record])
         if connection is False:
             return result
 
-        query = (Record
-                 .select(Record, DeviceModel, User)
-                 .join(DeviceModel)
-                 .switch(Record)
-                 .join(User))
+        query = (Record.select(Record))
 
         if search:
             query = query.where(Record.factory_number == search)
         elif filter_settings:
             if 'user' in filter_settings:
-                username = filter_settings.get('user')
-                query = query.where(User.username == username)
+                query = query.where(Record.user == filter_settings.get('user'))
+            if 'series' in filter_settings:
+                series = filter_settings.get('series')
+                query = query.where(Record.series == series)
             if 'devicemodel' in filter_settings:
-                title = filter_settings.get('devicemodel')
-                query = query.where(DeviceModel.title == title)
+                device_model = filter_settings.get('devicemodel')
+                query = query.where(Record.device_model == device_model)
             if 'date' in filter_settings:
                 date_1: datetime = filter_settings.get('date')[0].toPyDate()
                 date_2: datetime = filter_settings.get('date')[1].toPyDate()
@@ -181,16 +200,18 @@ class DataBase(QObject):
                  .where(Record.temporary == temporary)
                  .limit(settings.DISPLAY_RECORDS)
                  .order_by(Record.date.desc()))
-        # постараться избавиться от лишних return и использовать elif
         for record in query:
-            factory_number = record.factory_number
-            title = f'{factory_number} - {record.device_model.title}'
+            # title - подзаголовок для серии записей в таблице
+            title = (
+                f'             {record.factory_number}'
+                f'     "{record.series}"'
+                f'     {record.device_model}'
+            )
             if title in result:
                 result[title].append(record)
             else:
                 result[title] = [record]
         db.close()
-        # print(result)
         return result
 
     def delete_records(self, db, list_id) -> bool:
@@ -221,6 +242,7 @@ class DataBase(QObject):
                 for record in records:
                     temp, created = Record.get_or_create(
                         device_model=record.device_model,
+                        series=record.series,
                         user=record.user,
                         factory_number=record.factory_number,
                         comment=record.comment,
@@ -237,6 +259,7 @@ class DataBase(QObject):
         except OperationalError:
             return False
 
+    '''
     def get_model_by_title(self, title) -> Union[DeviceModel, None]:
         """Возвращает объект DeviceModel по названию аппарата. Если в БД
         его нет, возвращает None."""
@@ -298,6 +321,7 @@ class DataBase(QObject):
             users = [user.username for user in User.select()]
         self.sqlite_db.close()
         return users
+    '''
 
     def get_ready_db(self):
         """Возвращает ссылку на рабочую базу данных.
@@ -331,13 +355,9 @@ class DataBase(QObject):
 
     def update_sqlite(self) -> None:
         """Создание таблиц и фикстур для базы данных."""
-        with self.sqlite_db.bind_ctx([User, Record]):
+        with self.sqlite_db.bind_ctx([Record]):
             self.sqlite_db.connect()
-            self.sqlite_db.create_tables([User, DeviceModel, Record])
-            for username in cts.USERS:
-                User.get_or_create(username=username)
-            for title in cts.DEVICE_MODELS:
-                DeviceModel.get_or_create(title=title)
+            self.sqlite_db.create_tables([Record])
             self.sqlite_db.close()
 
     def close(self, db) -> None:

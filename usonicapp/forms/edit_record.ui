@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>239</width>
-    <height>318</height>
+    <width>259</width>
+    <height>316</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -40,7 +40,7 @@
       <widget class="QDateTimeEdit" name="datetimeedit">
        <property name="minimumSize">
         <size>
-         <width>120</width>
+         <width>140</width>
          <height>0</height>
         </size>
        </property>
@@ -98,15 +98,15 @@
        </property>
        <property name="minimumSize">
         <size>
-         <width>120</width>
+         <width>140</width>
          <height>0</height>
         </size>
        </property>
        <property name="inputMask">
-        <string>000.0000-0000</string>
+        <string/>
        </property>
        <property name="text">
-        <string>000.0000-0000</string>
+        <string/>
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -141,7 +141,7 @@
       <widget class="QComboBox" name="composition_combobox">
        <property name="minimumSize">
         <size>
-         <width>120</width>
+         <width>140</width>
          <height>0</height>
         </size>
        </property>
@@ -165,6 +165,40 @@
          <string>Неизвестно</string>
         </property>
        </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_7">
+     <item>
+      <widget class="QLabel" name="label_7">
+       <property name="text">
+        <string>Серия</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_6">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QComboBox" name="series_combobox">
+       <property name="minimumSize">
+        <size>
+         <width>140</width>
+         <height>0</height>
+        </size>
+       </property>
       </widget>
      </item>
     </layout>
@@ -195,7 +229,7 @@
       <widget class="QComboBox" name="devicemodel_combobox">
        <property name="minimumSize">
         <size>
-         <width>120</width>
+         <width>140</width>
          <height>0</height>
         </size>
        </property>
@@ -232,7 +266,7 @@
       <widget class="QComboBox" name="user_combobox">
        <property name="minimumSize">
         <size>
-         <width>120</width>
+         <width>140</width>
          <height>0</height>
         </size>
        </property>
@@ -249,6 +283,20 @@
    </item>
    <item>
     <widget class="QTextEdit" name="comment_textedit"/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_8">
+     <item>
+      <widget class="QCheckBox" name="temporary_checkbox">
+       <property name="layoutDirection">
+        <enum>Qt::LeftToRight</enum>
+       </property>
+       <property name="text">
+        <string>Временная запись</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="Line" name="line">

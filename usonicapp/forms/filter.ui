@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>225</width>
-    <height>226</height>
+    <width>256</width>
+    <height>256</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -23,6 +23,16 @@
    </item>
    <item>
     <widget class="QComboBox" name="user_combobox"/>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="series_checkbox">
+     <property name="text">
+      <string>Фильтрация по серии аппарата</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QComboBox" name="series_combobox"/>
    </item>
    <item>
     <widget class="QCheckBox" name="devicemodel_checkbox">

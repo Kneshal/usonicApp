@@ -100,14 +100,16 @@ class ComparePlotTab(QObject):
 
         table = QTableWidget()
         table.clearContents()
-        table.setColumnCount(8)
+        table.setColumnCount(10)
         table.setRowCount(len(self.records))
         table.setHorizontalHeaderLabels(
             [
-                'Дата и время',
-                'Заводской номер',
                 'Цвет',
+                'Дата и время',
+                'Заводской номер',                
                 'Комплектация',
+                'Серия',
+                'Модель',
                 'F, Гц',
                 'R, Ом',
                 'Q',
@@ -122,29 +124,32 @@ class ComparePlotTab(QObject):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
         flag_selectable_enabled = (
                 Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
             )
         row: int = 0
         for record in self.records:
             table.setRowHeight(row, cts.TABLE_ROW_HEIGHT)
-            # Ячейка с датой и временем
-            item = QTableWidgetItem(
-                record.date.strftime('%d-%m-%Y %H:%M:%S'))
-            item.setFlags(flag_selectable_enabled)
-            table.setItem(row, 0, item)
-
-            # Ячейка с заводским номером
-            item = QTableWidgetItem(record.factory_number)
-            item.setFlags(flag_selectable_enabled)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            table.setItem(row, 1, item)
 
             # Ячейка с цветом
             item = QTableWidgetItem()
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             item.setBackground(QColor(cts.COLORS[row]))
+            table.setItem(row, 0, item)
+
+            # Ячейка с датой и временем
+            item = QTableWidgetItem(
+                record.date.strftime('%d-%m-%Y %H:%M:%S'))
+            item.setFlags(flag_selectable_enabled)
+            table.setItem(row, 1, item)
+
+            # Ячейка с заводским номером
+            item = QTableWidgetItem(record.factory_number)
+            item.setFlags(flag_selectable_enabled)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(row, 2, item)
 
             # Ячейка с комплектацией УЗКС
@@ -152,6 +157,18 @@ class ComparePlotTab(QObject):
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(row, 3, item)
+            
+            # Ячейка с серией аппарата
+            item = QTableWidgetItem(record.series)
+            item.setFlags(flag_selectable_enabled)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 4, item)
+
+            # Ячейка с моделью аппарата
+            item = QTableWidgetItem(record.device_model)
+            item.setFlags(flag_selectable_enabled)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 5, item)
 
             # Ячейка с резонансной частотой
             frequence = (
@@ -159,7 +176,7 @@ class ComparePlotTab(QObject):
             item = QTableWidgetItem(frequence)
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            table.setItem(row, 4, item)
+            table.setItem(row, 6, item)
 
             # Ячейка с сопротивлением
             resistance = (
@@ -167,7 +184,7 @@ class ComparePlotTab(QObject):
             item = QTableWidgetItem(resistance)
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            table.setItem(row, 5, item)
+            table.setItem(row, 7, item)
 
             # Ячейка с добротность
             quality_factor = (
@@ -176,12 +193,12 @@ class ComparePlotTab(QObject):
             item = QTableWidgetItem(quality_factor)
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            table.setItem(row, 6, item)
+            table.setItem(row, 8, item)
 
             # Ячейка с комментарием
             item = QTableWidgetItem(record.comment)
             item.setFlags(flag_selectable_enabled)
-            table.setItem(row, 7, item)
+            table.setItem(row, 9, item)
             row += 1
 
         height = len(self.records)*cts.TABLE_ROW_HEIGHT + 27

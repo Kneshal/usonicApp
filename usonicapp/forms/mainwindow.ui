@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1003</width>
-    <height>731</height>
+    <width>1211</width>
+    <height>735</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -282,6 +282,23 @@
              <widget class="QComboBox" name="composition_combobox"/>
             </item>
             <item>
+             <widget class="QLabel" name="label_7">
+              <property name="text">
+               <string>Серия</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="series_combobox">
+              <property name="minimumSize">
+               <size>
+                <width>120</width>
+                <height>0</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item>
              <widget class="QLabel" name="label_2">
               <property name="text">
                <string>Модель</string>
@@ -291,11 +308,11 @@
             <item>
              <widget class="QComboBox" name="devicemodel_combobox">
               <property name="enabled">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
               <property name="minimumSize">
                <size>
-                <width>130</width>
+                <width>140</width>
                 <height>0</height>
                </size>
               </property>
