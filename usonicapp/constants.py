@@ -111,7 +111,13 @@ DEVICE_MODELS = {
         {'name': 'УЗАП-8/22-ОПг (2)', 'img': 'img/uzap-8-22-opg-2.jpg'},
         {'name': 'УЗАП-10/18-ОПг', 'img': 'img/uzap-10-18-opg.jpg'},
     ],
-    'Гиминей-ультра':
+    'Запаиватель':
+    [
+        {'name': 'ЗУЗ-0,1/44-М', 'img': 'img/zuz-01-44-m.jpg'},
+        {'name': 'ЗУЗ-0,1/44-ОКб', 'img': 'img/zuz-01-44-okb.jpg'},
+        {'name': 'ЗУЗ-0,063/44-ОР', 'img': 'img/zuz-0063-44-or.jpg'},
+    ],
+    'Гиминей-Ультра':
     [
         {'name': 'АУС-0,1/27-ОМА (1)', 'img': 'img/aus-01-27-oma-1.jpg'},
         {'name': 'АУС-0,1/27-ОМА (2)', 'img': 'img/aus-01-27-oma-2.jpg'},
@@ -169,7 +175,7 @@ DEVICE_MODELS = {
         {'name': 'СУЗ-0,6/22-О', 'img': 'img/suz-06-22-o.jpg'},
         {'name': 'СУЗ-0,4/22-О', 'img': 'img/suz-04-22-o.jpg'},
     ],
-    'ТУМАН-Н':
+    'Туман-Н':
     [
         {'name': 'УЗР-0,15/22-О (1)', 'img': 'img/uzr-015-22-o-1.jpg'},
         {'name': 'УЗР-0,15/22-О (2)', 'img': 'img/uzr-015-22-o-2.jpg'},
@@ -183,7 +189,7 @@ DEVICE_MODELS = {
         {'name': 'УЗР-0,1/44-ОСв', 'img': 'img/uzr-01-44-osv.jpg'},
         {'name': 'УЗР-0,1/80-ОМ', 'img': 'img/uzr-01-80-om.jpg'},
     ],
-    'ТУМАН-В':
+    'Туман-В':
     [
         {'name': 'УЗР-0,1/130-ОМв', 'img': 'img/uzr-01-130-omv.jpg'},
         {'name': 'УЗР-0,1/160-ОМв', 'img': 'img/uzr-01-160-omv.jpg'},
@@ -216,6 +222,20 @@ DEVICE_MODELS = {
         {'name': 'УЗТА-1/22-О', 'img': 'img/uzta-1-22-o.jpg'},
         {'name': 'УЗТА-0,3/60-О', 'img': 'img/uzta-03-60-o.jpg'},
         {'name': 'УЗТА-0,3/100-О', 'img': 'img/uzta-03-100-o.jpg'},
+    ],
+    'Линия':
+    [
+        {'name': 'АУСЛ-0,4/22-ОМ (1)', 'img': 'img/ausl-04-22-om-1.jpg'},
+        {'name': 'АУСЛ-0,4/22-ОМ (2)', 'img': 'img/ausl-04-22-om-2.jpg'},
+        {'name': 'АУСЛ-0,4/22-ОМ (3)', 'img': 'img/ausl-04-22-om-3.jpg'},
+        {'name': 'АУСЛ-0,4/22-ОМЛн', 'img': 'img/ausl-04-22-omln.jpg'},
+        {'name': 'АУСЛ-1/22-ОМ (1)', 'img': 'img/ausl-1-22-om-1.jpg'},
+        {'name': 'АУСЛ-1/22-ОМ (2)', 'img': 'img/ausl-1-22-om-2.jpg'},
+        {'name': 'АУСЛ-1/22-ОМ (3)', 'img': 'img/ausl-1-22-om-3.jpg'},
+        {'name': 'АУСЛ-1/22-ОМЛн', 'img': 'img/ausl-1-22-omln.jpg'},
+        {'name': 'АУСЛ-1,6/22-ОК-60', 'img': 'img/ausl-1_6-22-osh-60.jpg'},
+        {'name': 'АУСЛ-3/22-ОШ-270', 'img': 'img/ausl-3-22-osh-270.jpg'},
+        {'name': 'УЗРЛ-0,15/44', 'img': 'img/uzrl-015-44.jpg'},
     ],
 }
 

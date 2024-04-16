@@ -92,14 +92,24 @@ class Record(BaseModel):
         null=True,
     )
 
-    # local = BooleanField(
-    #     verbose_name='База данных',
-    #     help_text='Укажите тип базы данных',
-    #     default=True,
-    # )
-
     class Meta:
         ordering = ['-date']
 
     def __str__(self):
         return f'{self.date} - {self.factory_number}'
+
+    def to_dict(self):
+        return {
+            'user': self.user,
+            'device_model': self.device_model,
+            'series': self.series,
+            'factory_number': self.factory_number,
+            'comment': self.comment,
+            'date': self.date.isoformat(),
+            'temporary': self.temporary,
+            # 'data': self.data,
+            'frequency': self.frequency,
+            'resistance': self.resistance,
+            'quality_factor': self.quality_factor,
+            'composition': self.composition,
+        }

@@ -11,13 +11,58 @@ from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
 basedir = os.path.dirname(__file__)
 
-# Может прописать декоратор на проверку подключения к бд
+
+def init_pg_db(db: PostgresqlDatabase) -> None:
+    """Инициализация базы данных PostgreSql"""
+    db.init(
+        settings.DB_NAME,
+        host=settings.DB_HOST,
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+        port=settings.DB_PORT,
+    )
 
 
-class DataBase(QObject):
-    """Класс описывает действующие базы данных и взаимодействие с ними."""
+class DataBaseCheck(QObject):
+    """Класс, отвечающий за проверку состояния подключения к БД."""
     pg_db_checked_signal: pyqtSignal = pyqtSignal(bool)
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.pg_db = PostgresqlDatabase(
+            None,
+            autoconnect=False,
+        )
+
+    def init_timers(self) -> None:
+        """Настройка и запуск таймеров."""
+        self.db_check_timer: QTimer = QTimer()
+        self.db_check_timer.setInterval(cts.TIMER_DB_CHECK)
+        self.db_check_timer.timeout.connect(self.check_db_status)
+        self.check_db_status()
+        self.db_check_timer.start()
+
+    def check_pg_db(self) -> bool:
+        """Проверка доступности базы данных postgreSQL."""
+        init_pg_db(self.pg_db)
+        try:
+            self.pg_db.connect()
+            self.pg_db.close()
+        except OperationalError:
+            # print('PostgreSql is offline')
+            return False
+        # print('PostgreSql is online')
+        return True
+
+    @pyqtSlot()
+    def check_db_status(self) -> None:
+        """Изменение иконки доступности БД."""
+        status = self.check_pg_db()
+        self.pg_db_checked_signal.emit(status)
+
+
+class DataBaseControl(QObject):
+    """Класс описывает действующие базы данных и взаимодействие с ними."""
     def __init__(self) -> None:
         super().__init__()
         self.pg_db = PostgresqlDatabase(
@@ -30,13 +75,17 @@ class DataBase(QObject):
             pragmas={'foreign_keys': 1}
         )
 
-    def init_timers(self) -> None:
-        """Настройка и запуск таймеров."""
-        self.db_check_timer: QTimer = QTimer()
-        self.db_check_timer.setInterval(cts.TIMER_DB_CHECK)
-        self.db_check_timer.timeout.connect(self.check_db_status)
-        self.check_db_status()
-        self.db_check_timer.start()
+    def connect_and_bind_models(self, db, models) -> bool:
+        """Подключаемся к бд и привязываем модели."""
+        if isinstance(db, PostgresqlDatabase):
+            init_pg_db(self.pg_db)
+        try:
+            db.connect()
+            db.bind(models)
+            return True
+        except OperationalError as error:
+            print(error)
+            return False
 
     def upload_record(self, db, record, data=None) -> bool:
         """Загружает запись и связанные данные на сервер."""
@@ -52,34 +101,6 @@ class DataBase(QObject):
             return False
         self.close(db)
         return True
-
-    def init_pg_db(self) -> None:
-        """Инициализация базы данных PostgreSql"""
-        self.pg_db.init(
-            settings.DB_NAME,
-            host=settings.DB_HOST,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD,
-            port=settings.DB_PORT,
-        )
-
-    @pyqtSlot()
-    def check_db_status(self) -> None:
-        """Изменение иконки доступности БД."""
-        status = self.check_pg_db()
-        self.pg_db_checked_signal.emit(status)
-
-    def connect_and_bind_models(self, db, models) -> bool:
-        """Подключаемся к бд и привязываем модели."""
-        if isinstance(db, PostgresqlDatabase):
-            self.init_pg_db()
-        try:
-            db.connect()
-            db.bind(models)
-            return True
-        except OperationalError as error:
-            print(error)
-            return False
 
     def get_device_model_title_by_fnumber(self, factory_number: str):  # noqa  -> str | None
         """Возвращает название модели по указанной записи."""
@@ -97,9 +118,7 @@ class DataBase(QObject):
 
     def get_record(self, db=None, id=None, factory_number=None) -> Record:  # noqa  -> Record | None
         """Возвращает запись с заданным id из указанной БД."""
-        if db is None:
-            db = self.get_ready_db()
-        if not self.connect_and_bind_models(db, [Record]):
+        if db is None or not self.connect_and_bind_models(db, [Record]):
             return None
         query = (Record.select(Record))
         if id:
@@ -153,8 +172,8 @@ class DataBase(QObject):
         composition = data.get('composition')
         temporary = data.get('temporary')
 
-        if not DataBase.record_data_validation(data):
-            print('Validation failed')
+        if not DataBaseControl.record_data_validation(data):
+            # print('Validation failed')
             self.close(db)
             return False
         Record.update(
@@ -171,6 +190,23 @@ class DataBase(QObject):
         self.close(db)
         return True
 
+    def update_records(self, db, list_id: list, data: dict) -> bool:  # noqa
+        """Массовое обновление записей в заданной БД."""
+        if not self.connect_and_bind_models(db, [Record,]):
+            return False
+
+        series = data.get('series')
+        device_model = data.get('device_model')
+        for id in list_id:
+            Record.update(
+                {
+                    Record.series: series,
+                    Record.device_model: device_model,
+                }
+            ).where(Record.id == id).execute()
+        self.close(db)
+        return True
+
     def get_filtered_records(self, db, filter_settings=None, search=None, temporary=False) -> dict:  # noqa
         """Получаем список записей в соответствии с настройками фильтрации."""
         result: dict = {}
@@ -179,10 +215,24 @@ class DataBase(QObject):
         if connection is False:
             return result
 
-        query = (Record.select(Record))
+        # Не подгружаем data для ускорения работы
+        query = Record.select(
+            Record.id,
+            Record.user,
+            Record.device_model,
+            Record.series,
+            Record.factory_number,
+            Record.comment,
+            Record.date,
+            Record.temporary,
+            Record.frequency,
+            Record.resistance,
+            Record.quality_factor,
+            Record.composition,
+        )
 
         if search:
-            query = query.where(Record.factory_number == search)
+            query = query.where(Record.factory_number.contains(search))
         elif filter_settings:
             if 'user' in filter_settings:
                 query = query.where(Record.user == filter_settings.get('user'))
@@ -258,100 +308,6 @@ class DataBase(QObject):
             return True
         except OperationalError:
             return False
-
-    '''
-    def get_model_by_title(self, title) -> Union[DeviceModel, None]:
-        """Возвращает объект DeviceModel по названию аппарата. Если в БД
-        его нет, возвращает None."""
-        db = self.get_ready_db()
-        if not self.connect_and_bind_models(db, [DeviceModel]):
-            return None
-        device_model = DeviceModel.get_or_none(title=title)
-        db.close()
-        return device_model
-
-    def get_user_by_username(self, username) -> Union[User, None]:
-        """Возвращает объект DeviceModel по названию аппарата. Если в БД
-        его нет, возвращает None."""
-        db = self.get_ready_db()
-        if not self.connect_and_bind_models(db, [User]):
-            return None
-        user = User.get_or_none(username=username)
-        db.close()
-        return user
-
-    def get_models_pg(self) -> list:
-        """Возвращает список всех моделей аппаратов в бд PostgreSQL."""
-        if not self.check_pg_db():
-            return self.get_models_sqlite()
-        self.pg_db.connect()
-        with self.pg_db.bind_ctx([DeviceModel]):
-            models: list = [model.title for model in DeviceModel.select()]
-        self.pg_db.close()
-        return models
-
-    def get_models_sqlite(self) -> list:
-        """Возвращает список всех моделей в бд SQLite."""
-        models: list = []
-        if not self.check_sqlite_db():
-            return models
-        self.sqlite_db.connect()
-        with self.sqlite_db.bind_ctx([DeviceModel]):
-            models = [model.title for model in DeviceModel.select()]
-        self.sqlite_db.close()
-        return models
-
-    def get_users_pg(self) -> list:
-        """Возвращает список всех пользователей в бд PostgreSQL."""
-        if not self.check_pg_db():
-            return self.get_users_sqlite()
-        self.pg_db.connect()
-        with self.pg_db.bind_ctx([User]):
-            users: list = [user.username for user in User.select()]
-        self.pg_db.close()
-        return users
-
-    def get_users_sqlite(self) -> list:
-        """Возвращает список всех пользователей в бд SQLite."""
-        users: list = []
-        if not self.check_sqlite_db():
-            return users
-        self.sqlite_db.connect()
-        with self.sqlite_db.bind_ctx([User]):
-            users = [user.username for user in User.select()]
-        self.sqlite_db.close()
-        return users
-    '''
-
-    def get_ready_db(self):
-        """Возвращает ссылку на рабочую базу данных.
-        Приоритет отдается удаленной БД."""
-        if self.check_pg_db():
-            return self.pg_db
-        return self.sqlite_db
-
-    def check_pg_db(self) -> bool:
-        """Проверка доступности базы данных postgreSQL."""
-        self.init_pg_db()
-        try:
-            self.pg_db.connect()
-            self.pg_db.close()
-        except OperationalError:
-            # print('PostgreSql is offline')
-            return False
-        # print('PostgreSql is online')
-        return True
-
-    def check_sqlite_db(self) -> bool:
-        """Проверка доступности базы данных SQlite."""
-        try:
-            self.sqlite_db.connect()
-            self.sqlite_db.close()
-        except OperationalError:
-            # print('SQlite db is offline')
-            return False
-        # print('SQlite db is online')
-        return True
 
     def update_sqlite(self) -> None:
         """Создание таблиц и фикстур для базы данных."""

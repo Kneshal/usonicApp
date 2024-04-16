@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>746</width>
-    <height>524</height>
+    <width>1064</width>
+    <height>549</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -99,6 +99,28 @@
       </spacer>
      </item>
      <item>
+      <widget class="QToolButton" name="groupedit_button">
+       <property name="minimumSize">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+       <property name="toolTip">
+        <string>Массовое редактирование записей</string>
+       </property>
+       <property name="text">
+        <string>...</string>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QToolButton" name="temp_button">
        <property name="minimumSize">
         <size>
@@ -182,7 +204,7 @@
         <string>Заводской номер</string>
        </property>
        <property name="inputMask">
-        <string>000.0000-0000</string>
+        <string/>
        </property>
        <property name="text">
         <string>000.0000-0000</string>
@@ -337,6 +359,30 @@
       </layout>
      </widget>
     </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="count_label">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>

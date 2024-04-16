@@ -1,7 +1,12 @@
+import os
+
 from dynaconf import Dynaconf, Validator
 
+current_directory = os.path.dirname(os.path.realpath(__file__))
+print(current_directory)
 settings = Dynaconf(
     envvar_prefix='DYNACONF',
+    root_path=current_directory,
     settings_files=['settings.toml'],
     validators=[
         Validator(

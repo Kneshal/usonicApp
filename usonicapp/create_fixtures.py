@@ -1,8 +1,7 @@
 # from decimal import Decimal
 
-import constants as cts
 from config import settings
-from models import FactoryNumber, Record, generate_factory_number
+from models import FactoryNumber, Record
 from peewee import PostgresqlDatabase, SqliteDatabase
 
 if __name__ == '__main__':

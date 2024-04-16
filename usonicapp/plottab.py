@@ -106,7 +106,7 @@ class ComparePlotTab(QObject):
             [
                 'Цвет',
                 'Дата и время',
-                'Заводской номер',                
+                'Заводской номер',
                 'Комплектация',
                 'Серия',
                 'Модель',
@@ -157,7 +157,7 @@ class ComparePlotTab(QObject):
             item.setFlags(flag_selectable_enabled)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(row, 3, item)
-            
+
             # Ячейка с серией аппарата
             item = QTableWidgetItem(record.series)
             item.setFlags(flag_selectable_enabled)

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>259</width>
-    <height>316</height>
+    <height>341</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -199,6 +199,9 @@
          <height>0</height>
         </size>
        </property>
+       <property name="editable">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
     </layout>
@@ -234,7 +237,7 @@
         </size>
        </property>
        <property name="editable">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
       </widget>
      </item>
