@@ -3,7 +3,6 @@ import os
 from dynaconf import Dynaconf, Validator
 
 current_directory = os.path.dirname(os.path.realpath(__file__))
-print(current_directory)
 settings = Dynaconf(
     envvar_prefix='DYNACONF',
     root_path=current_directory,
@@ -26,6 +25,7 @@ settings = Dynaconf(
             'FPS',
             'REAL_TIME_CHART',
             'PREVIOUS_COMPOSITION',
+            'VOLTAGE',
             must_exist=True
         ),
         Validator('DB_NAME', default='Development'),
@@ -40,5 +40,6 @@ settings = Dynaconf(
         Validator('STEP', default=1.0, lte=100, gte=0.01),
         Validator('DISPLAY_RECORDS', default=100, lte=10000),
         Validator('FPS', default=30, gte=1, lte=60),
+        Validator('VOLTAGE', default=220, gte=25, lte=250),
     ]
 )

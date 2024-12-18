@@ -71,6 +71,9 @@ class SerialPortManager(QObject):
         super().__init__()
         self.serial: QSerialPort = QSerialPort()
         self.serial.setBaudRate(115200)
+        self.serial.setStopBits(QSerialPort.StopBits.OneStop)
+        self.serial.setParity(QSerialPort.Parity.NoParity)
+
         self.serial.readyRead.connect(self.read_data)
 
         self.factory_number = None
@@ -97,6 +100,11 @@ class SerialPortManager(QObject):
         self.data_receive_timer = QTimer()
         self.data_receive_timer.setInterval(cts.TIMER_DATA_RECEIVE)
         self.data_receive_timer.timeout.connect(self.reconnection)
+
+        self.settings_request_timer = QTimer()
+        self.settings_request_timer.setInterval(cts.TIMER_SETTINGS_REQUEST)
+        self.settings_request_timer.timeout.connect(
+            self.close_serial_connection)
 
     @staticmethod
     def get_available_port_names() -> list[str]:
@@ -154,6 +162,11 @@ class SerialPortManager(QObject):
         self.transfer_status = not self.transfer_status
 
     @pyqtSlot()
+    def close_serial_connection(self) -> None:
+        self.settings_request_timer.stop()
+        pass
+
+    @pyqtSlot()
     def reconnection(self) -> None:
         """Попытка повторной отправки данных, если COM-порт не
         отвечает."""
@@ -178,7 +191,8 @@ class SerialPortManager(QObject):
         self.start_freq = freq_list[0]
         self.current_freq: int = freq_list[0]
         self.freq_list = freq_list
-        self.calibration_request()
+        self.set_voltage()
+        # self.calibration_request()
 
     def stop_data_transfer(self) -> None:
         """Завершение процесса передачи данных."""
@@ -187,7 +201,15 @@ class SerialPortManager(QObject):
 
     def calibration_request(self) -> None:
         """Запрос калибровок."""
+        self.settings_request_timer.start(cts.TIMER_SETTINGS_REQUEST)
         self.serial.write(cts.CALIBRATION)
+
+    def set_voltage(self) -> None:
+        """Установка напряжения."""
+        self.settings_request_timer.start(cts.TIMER_SETTINGS_REQUEST)
+        self.serial.write(cts.VOLTAGE + struct.pack('@B', settings.VOLTAGE))
+        # self.serial.waitForReadyRead(100)
+        # self.serial.write(cts.VOLTAGE + struct.pack('<h', settings.VOLTAGE))
 
     def send_data(self, modify: bool = True) -> None:
         """Отправка данных на COM-порт."""
@@ -246,11 +268,13 @@ class SerialPortManager(QObject):
                         self.signal_stop_data_transfer.emit()
                     else:
                         self.send_data()
+                elif command == cts.VOLTAGE:
+                    self.settings_request_timer.stop()
+                    self.calibration_request()
                 elif command == cts.CALIBRATION:
+                    self.settings_request_timer.stop()
                     self.calibration = convert_bytes_to_decimal(data[0:2])/1000
                     self.send_data()
-                elif command == cts.VOLTAGE:
-                    pass
                 else:
                     print('Неизвестная команда.')
 

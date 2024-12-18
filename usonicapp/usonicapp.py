@@ -1,4 +1,4 @@
-# pyinstaller --windowed --icon=usonic.ico --noconfirm usonic.py
+# pyinstaller usonicapp.spec
 
 import os
 import sys
@@ -1022,6 +1022,7 @@ class SettingsWindow(QWidget):
         self.checkbox_bugreport.setChecked(settings.BUG_REPORT)
         self.checkbox_realtime_chart.setChecked(settings.REAL_TIME_CHART)
         self.fps_spinbox.setValue(settings.FPS)
+        self.voltage_spinbox.setValue(settings.VOLTAGE)
 
     @pyqtSlot()
     def save_button_clicked(self) -> None:
@@ -1038,6 +1039,7 @@ class SettingsWindow(QWidget):
         settings.REAL_TIME_CHART = self.checkbox_realtime_chart.isChecked()
         settings.COM_PORT = self.combobox_serialport.currentText()
         settings.FPS = self.fps_spinbox.value()
+        settings.VOLTAGE = self.voltage_spinbox.value()
         data: dict = settings.as_dict()
         loaders.write('settings.toml', DynaBox(data).to_dict())
         self.terminal_signal.emit('Настройки программы сохранены')

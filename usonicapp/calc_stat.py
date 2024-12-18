@@ -236,5 +236,6 @@ def calc_stat(data, start=None, end=None):
             'F': int(stat['F_zmin']),
             'Q': int(stat['Q']),
         }
-    except ArithmeticError:
+    except (ArithmeticError, ValueError):
         return None
+
