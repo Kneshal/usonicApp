@@ -5,7 +5,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Toolbar
 from matplotlib.figure import Figure
 from models import Record
-from PyQt5.QtCore import QObject, Qt, pyqtSlot
+from PyQt5.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QSizePolicy,
                              QSpacerItem, QTableWidget, QTableWidgetItem,
@@ -267,15 +267,34 @@ class ComparePlotTab(QObject):
 
 class PlotTab(QObject):
     """Класс описывающий вкладку QTabwidget и графики."""
-    def __init__(self, tabwidget: QTabWidget, record) -> None:  # noqa
+    def __init__(self, tabwidget: QTabWidget, record, update_range_signal) -> None:  # noqa
         super().__init__()
         self.tabwidget: QTabWidget = tabwidget
 
         self.record: Record = record
         self.data = MeasuredValues()
-
+        self.update_range_signal: pyqtSignal = update_range_signal
+        self.start_freq = None
+        self.range_freq = None
         self.init_widgets()
         self.init_plots()
+
+    def on_click(self, event):
+        if (
+            event.inaxes
+            and event.button == 1
+            and self.toolbar.mode == 'zoom rect'
+        ):
+            self.start_freq = int(event.xdata)
+
+    def on_release(self, event):
+        if (
+            event.inaxes
+            and event.button == 1
+            and self.toolbar.mode == 'zoom rect'
+        ):
+            self.range_freq = int(event.xdata) - self.start_freq
+            self.update_range_signal.emit([self.start_freq, self.range_freq])
 
     def init_widgets(self) -> None:
         """Инициализация основного виджета."""
@@ -286,6 +305,8 @@ class PlotTab(QObject):
         # График
         self.canvas = MplCanvas(self)
         page_layout.addWidget(self.canvas)
+        self.canvas.mpl_connect('button_press_event', self.on_click)
+        self.canvas.mpl_connect('button_release_event', self.on_release)
 
         # Слой с параметрами
         stat_layout = QHBoxLayout()
@@ -312,11 +333,11 @@ class PlotTab(QObject):
 
         # Навигационная панель
         widget = QWidget()
-        toolbar = Toolbar(self.canvas, widget)
-        toolbar.setStyleSheet('font-size: 14px; color: white;')
-        toolbar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        self.toolbar = Toolbar(self.canvas, widget)
+        self.toolbar.setStyleSheet('font-size: 14px; color: white;')
+        self.toolbar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
 
-        page_layout.addWidget(toolbar)
+        page_layout.addWidget(self.toolbar)
         page_layout.setContentsMargins(0, 0, 0, 0)
 
     def init_plots(self) -> None:

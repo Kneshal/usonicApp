@@ -238,4 +238,3 @@ def calc_stat(data, start=None, end=None):
         }
     except (ArithmeticError, ValueError):
         return None
-

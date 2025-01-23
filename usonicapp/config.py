@@ -26,6 +26,9 @@ settings = Dynaconf(
             'REAL_TIME_CHART',
             'PREVIOUS_COMPOSITION',
             'VOLTAGE',
+            'TERMINAL',
+            'EXPRESS_RANGE',
+            'EXPRESS_STEP',
             must_exist=True
         ),
         Validator('DB_NAME', default='Development'),
@@ -36,10 +39,11 @@ settings = Dynaconf(
         Validator('DB_PORT', default=5432, lte=65535),
         Validator('MODEL', default='Волна-П'),
         Validator('START_FREQUENCY', default=20000, lte=100000, gte=15000),
-        Validator('RANGE', default=3000, lte=85000, gte=100),
+        Validator('RANGE', default=3000, lte=85000, gte=9),
         Validator('STEP', default=1.0, lte=100, gte=0.01),
         Validator('DISPLAY_RECORDS', default=100, lte=10000),
         Validator('FPS', default=30, gte=1, lte=60),
         Validator('VOLTAGE', default=220, gte=25, lte=250),
+        Validator('EXPRESS_STEP', default=10, gte=10, lte=100),
     ]
 )

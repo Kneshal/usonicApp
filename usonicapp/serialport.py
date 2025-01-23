@@ -260,8 +260,9 @@ class SerialPortManager(QObject):
                         calibration=self.calibration,
                         f=f,
                     )
+                    # Возможно проблема
                     self.signal_transfer_progress_change.emit(
-                        len(self.freq_list)
+                         len(self.freq_list)
                     )
                     self.signal_send_data.emit(measured_value)
                     if not self.freq_list:
@@ -282,8 +283,8 @@ class SerialPortManager(QObject):
     def calc_data(raw_values: RawMeasuredValue, calibration: Decimal, f: int) -> MeasuredValue:  # noqa
         """Расчет параметров на основе данных от COM-порта."""
         # calibration = calibration
-
-        z = (calibration * pow(10, (((raw_values.v_db_u - raw_values.v_ref / 2) - (raw_values.v_db_i - raw_values.v_ref / 2)) / 600)))  # noqa
+        z = (calibration * pow(10, (((raw_values.v_db_u) - (raw_values.v_db_i))/695)))  # noqa
+        # z = (calibration * pow(10, (((raw_values.v_db_u - raw_values.v_ref / 2) - (raw_values.v_db_i - raw_values.v_ref / 2)) / 600)))  # noqa
         ph = (raw_values.v_ph_i/10 - raw_values.v_ph_u/10)
         r = z * Decimal(math.cos(math.radians(ph)))
         x = z * Decimal(math.sin(math.radians(ph)))

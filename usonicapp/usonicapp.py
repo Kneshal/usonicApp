@@ -1024,6 +1024,12 @@ class SettingsWindow(QWidget):
         self.fps_spinbox.setValue(settings.FPS)
         self.voltage_spinbox.setValue(settings.VOLTAGE)
 
+        self.checkbox_terminal.setChecked(settings.TERMINAL)
+        index = self.express_range_combobox.findText(settings.EXPRESS_RANGE)
+        if index != -1:
+            self.express_range_combobox.setCurrentIndex(index)
+        self.express_step_spinbox.setValue(settings.EXPRESS_STEP)
+
     @pyqtSlot()
     def save_button_clicked(self) -> None:
         """Слот нажатия кнопки сохранения настроек. Сохраняем данные
@@ -1040,6 +1046,9 @@ class SettingsWindow(QWidget):
         settings.COM_PORT = self.combobox_serialport.currentText()
         settings.FPS = self.fps_spinbox.value()
         settings.VOLTAGE = self.voltage_spinbox.value()
+        settings.TERMINAL = self.checkbox_terminal.isChecked()
+        settings.EXPRESS_RANGE = self.express_range_combobox.currentText()
+        settings.EXPRESS_STEP = self.express_step_spinbox.value()
         data: dict = settings.as_dict()
         loaders.write('settings.toml', DynaBox(data).to_dict())
         self.terminal_signal.emit('Настройки программы сохранены')
@@ -1054,6 +1063,8 @@ class SettingsWindow(QWidget):
 
 class MainWindow(QMainWindow):
     """Основное окно программы."""
+    update_range_signal: pyqtSignal = pyqtSignal(list)
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         uic.loadUi(os.path.join(basedir, 'forms/mainwindow.ui'), self)
@@ -1079,9 +1090,20 @@ class MainWindow(QMainWindow):
         self.settings_button.setIcon(set_icon('icons/settings.png'))
         self.compare_button.setIcon(set_icon('icons/compare.png'))
         self.table_button.setIcon(set_icon('icons/table.png'))
-        self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+        # self.temp_button.setIcon(set_icon('icons/temp_off.png'))
         self.upload_button.setIcon(set_icon('icons/upload_false.png'))
+        self.terminal_button.setIcon(set_icon('icons/terminal.png'))
+        self.express_button.setIcon(set_icon('icons/express.png'))
+        self.compare_button.setVisible(False)
         self.setStyleSheet(cts.STYLESHEET_LIGHT)
+
+        self.terminal.setVisible(False)
+
+        self.users_combobox.addItems(cts.USERS)
+        self.users_combobox.setCurrentText(
+            settings.OPERATOR)
+
+        self.real_time_chekbox.setChecked(settings.REAL_TIME_CHART)
 
         self.fnumber_lineedit.setText(
             settings.PREVIOUS_FACTORY_NUMBER
@@ -1150,10 +1172,21 @@ class MainWindow(QMainWindow):
         self.startstop_button.clicked.connect(self.startstop_button_clicked)
         self.compare_button.clicked.connect(self.compare_button_clicked)
         self.table_button.clicked.connect(self.table_button_clicked)
-        self.temp_button.clicked.connect(self.temp_button_clicked)
+        # self.temp_button.clicked.connect(self.temp_button_clicked)
+        self.terminal_button.clicked.connect(self.terminal_button_clicked)
         self.fnumber_lineedit.textChanged.connect(
             self.search_model_by_fnumber)
         self.upload_button.clicked.connect(self.upload_button_clicked)
+        self.express_button.clicked.connect(self.express_scan)
+        self.users_combobox.currentIndexChanged.connect(
+            self.users_combobox_changed
+        )
+        self.real_time_chekbox.stateChanged.connect(
+            self.real_time_checkbox_changed
+        )
+        self.temporary_data_checkbox.stateChanged.connect(
+            self.temporary_data_checkbox_changed
+        )
         # Окно настроек
         self.settings_window.change_settings_signal.connect(
             self.table_window.pg_filter_window.update_widget)
@@ -1175,6 +1208,9 @@ class MainWindow(QMainWindow):
         self.serial_manager.signal_transfer_progress_change.connect(
             self.update_progress_bar)
 
+        # Обновление диапазона в интерфейсе
+        self.update_range_signal.connect(self.update_range)
+
         # Tabwidget
         self.tabwidget.tabCloseRequested.connect(self.close_tab)
         self.tabwidget.currentChanged.connect(self.toggle_upload_button_status)
@@ -1183,6 +1219,21 @@ class MainWindow(QMainWindow):
         # Combobox с моделями
         self.series_combobox.currentIndexChanged.connect(
             self.device_model_update)
+
+    @pyqtSlot(int)
+    def users_combobox_changed(self, index):
+        """Изменение чекбокса оператора приводит к изменению
+        настроек"""
+        settings.OPERATOR = self.users_combobox.currentText()
+
+    @pyqtSlot(int)
+    def real_time_checkbox_changed(self, state):
+        """Изменение чекбокса графика в режиме реального времени
+         приводит к изменению настроек"""
+        if state == 2:
+            settings.REAL_TIME_CHART = True
+        else:
+            settings.REAL_TIME_CHART = False
 
     @pyqtSlot(list)
     def download_records(self, records) -> None:
@@ -1228,18 +1279,23 @@ class MainWindow(QMainWindow):
     @pyqtSlot(bool)
     def toggle_serial_interface(self, status: bool) -> None:
         """Меняем состояние виджетов COM-порта."""
-        self.temp_button.setEnabled(status)
+        # self.temp_button.setEnabled(status)
         # self.devicemodel_combobox.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
         self.step_spinbox.setEnabled(status)
 
-    def get_freq_list(self) -> list:
+    def get_freq_list(self, express=False) -> list:
         """Возвращает заданные пользователем данные по частоте."""
-        freq_start: int = self.freq_spinbox.value()
-        freq_stop: int = freq_start + self.range_spinbox.value()
-        step: Decimal = round(Decimal(self.step_spinbox.value()), 2)
+        if express is False:
+            freq_start: int = self.freq_spinbox.value()
+            freq_stop: int = freq_start + self.range_spinbox.value()
+            step: Decimal = round(Decimal(self.step_spinbox.value()), 2)
+        else:
+            freq_start: int = int(settings.EXPRESS_RANGE.split('-')[0])
+            freq_stop: int = int(settings.EXPRESS_RANGE.split('-')[1])
+            step: Decimal = round(Decimal(settings.EXPRESS_STEP), 2)
         freq_list: list = np.arange(
             freq_start,
             freq_stop,
@@ -1288,17 +1344,20 @@ class MainWindow(QMainWindow):
             self.devicemodel_combobox.currentText())
         settings.PREVIOUS_FACTORY_NUMBER = self.fnumber_lineedit.text()
 
-    def start_transfer(self):
+    def start_transfer(self, express=False):
         """Начало передачи данных."""
         self.startstop_button.setIcon(set_icon('icons/stop.png'))
-        freq_list = self.get_freq_list()
+        freq_list = self.get_freq_list(express)
         self.progressbar.setMaximum(len(freq_list))
         self.progressbar.setValue(0)
         self.toggle_serial_interface(False)
+        step = self.step_spinbox.value()
+        if express:
+            step = settings.EXPRESS_STEP
         self.terminal_msg(
             f'Передача данных в диапазоне {freq_list[0]} - '
             f'{ceil(freq_list[-1])} с шагом '
-            f'{round(self.step_spinbox.value(), 2)}'
+            f'{round(step, 2)}'
         )
 
         factory_number = self.fnumber_lineedit.text()
@@ -1333,7 +1392,7 @@ class MainWindow(QMainWindow):
             pass
 
         # Производим расчет параметров и обновляем данные записи
-        index = self.tabwidget.currentIndex()
+        index = self.tabwidget.count() - 1
         page = self.tabwidget.widget(index)
         plottab = self.storage.get(page)
         stat = calc_stat(plottab.data)
@@ -1352,6 +1411,35 @@ class MainWindow(QMainWindow):
             plottab.label_composition.setText(
                 f"Сборка - {plottab.record.composition}")
 
+    def express_scan(self) -> None:
+        """Экспресс сканирование по заданному диапазону и заданным шагом."""
+        transfer_status = self.serial_manager.get_transfer_status()
+        self.serial_manager.toggle_transfer_status()
+        if transfer_status is False:
+            self.start_transfer(express=True)
+        else:
+            self.stop_transfer()
+        settings.PREVIOUS_COMPOSITION = self.composition_combobox.currentText()
+        settings.PREVIOUS_DEVICE_MODEL = (
+            self.devicemodel_combobox.currentText())
+        settings.PREVIOUS_FACTORY_NUMBER = self.fnumber_lineedit.text()
+
+    def check_tab_number(self) -> None:
+        """Проверяет количество открытых вкладок в tabwidget.
+        Если вкладок меньше 2 или больше 10, то делает кнопку сравнения
+        невидимой."""
+        count = self.tabwidget.count()
+        if ((count < 2) or (count > 10)):
+            return self.compare_button.setVisible(False)
+        return self.compare_button.setVisible(True)
+
+    @pyqtSlot(list)
+    def update_range(self, coordinate):
+        """Обновляем виджеты интерфейса для выставления
+        новых значений диапазона частот."""
+        self.freq_spinbox.setValue(coordinate[0])
+        self.range_spinbox.setValue(coordinate[1])
+
     def create_tab(self, factory_number: str, series: str, device_model: str, user: str):  # noqa
         """Создает новую вкладку QTabwidget и соответствующий объект с
         графиками. Устанавливает связь между получением данных от
@@ -1367,6 +1455,7 @@ class MainWindow(QMainWindow):
         self.plottab = PlotTab(
             tabwidget=self.tabwidget,
             record=record,
+            update_range_signal=self.update_range_signal,
         )
 
         self.serial_manager.signal_send_data.connect(self.plottab.get_data)
@@ -1385,6 +1474,7 @@ class MainWindow(QMainWindow):
         self.tabwidget.addTab(self.plottab.page, tab_title)
         self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
         self.storage[self.plottab.page] = self.plottab
+        self.check_tab_number()
 
     @pyqtSlot(int)
     def close_tab(self, index: int) -> bool:
@@ -1400,8 +1490,10 @@ class MainWindow(QMainWindow):
                     self.stop_transfer()
             self.tabwidget.removeTab(index)
             del self.storage[page]
+            self.check_tab_number()
             return True
         except KeyError:
+            self.check_tab_number()
             # self.terminal_msg(
             #     'Не удалось удалить запись из локального хранилища.'
             # )
@@ -1426,7 +1518,7 @@ class MainWindow(QMainWindow):
             self.comport_label.setPixmap(self.disconnect_pixmap)
             self.startstop_button.setIcon(set_icon('icons/start_disabled'))
             # self.devicemodel_combobox.setEnabled(False)
-        self.temp_button.setEnabled(status)
+        # self.temp_button.setEnabled(status)
         self.startstop_button.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
         self.freq_spinbox.setEnabled(status)
@@ -1497,17 +1589,17 @@ class MainWindow(QMainWindow):
         self.database_label.setPixmap(self.offline_pixmap)
 
     @pyqtSlot()
-    def temp_button_clicked(self) -> None:
+    def temporary_data_checkbox_changed(self) -> None:
         """Слот изменения типа записи на временную или постоянную.
         Меняет видимость виджета ввода заводского номера."""
         self.temporary = not self.temporary
         if self.temporary:
-            self.temp_button.setIcon(set_icon('icons/temp_on.png'))
+            # self.temp_button.setIcon(set_icon('icons/temp_on.png'))
             self.label.setVisible(False)
             self.fnumber_lineedit.setVisible(False)
             # self.devicemodel_combobox.setEnabled(True)
         else:
-            self.temp_button.setIcon(set_icon('icons/temp_off.png'))
+            # self.temp_button.setIcon(set_icon('icons/temp_off.png'))
             self.label.setVisible(True)
             self.fnumber_lineedit.setVisible(True)
             self.search_model_by_fnumber()
@@ -1551,6 +1643,10 @@ class MainWindow(QMainWindow):
         """Добавляем текущее время и текст в терминал."""
         current_time: str = datetime.now().time().strftime('%H:%M:%S')
         self.terminal.append(f'{current_time} - {message}')
+
+    @pyqtSlot()
+    def terminal_button_clicked(self) -> None:
+        self.terminal.setVisible(not self.terminal.isVisible())
 
 
 if __name__ == '__main__':
