@@ -1281,6 +1281,7 @@ class MainWindow(QMainWindow):
         """Меняем состояние виджетов COM-порта."""
         # self.temp_button.setEnabled(status)
         # self.devicemodel_combobox.setEnabled(status)
+        self.express_button.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
         self.freq_spinbox.setEnabled(status)
         self.range_spinbox.setEnabled(status)
@@ -1495,6 +1496,7 @@ class MainWindow(QMainWindow):
         except KeyError:
             self.check_tab_number()
             # self.terminal_msg(
+            #
             #     'Не удалось удалить запись из локального хранилища.'
             # )
             return False
@@ -1519,6 +1521,7 @@ class MainWindow(QMainWindow):
             self.startstop_button.setIcon(set_icon('icons/start_disabled'))
             # self.devicemodel_combobox.setEnabled(False)
         # self.temp_button.setEnabled(status)
+        self.express_button.setEnabled(status)
         self.startstop_button.setEnabled(status)
         self.fnumber_lineedit.setEnabled(status)
         self.freq_spinbox.setEnabled(status)

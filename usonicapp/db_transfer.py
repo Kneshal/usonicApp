@@ -149,8 +149,8 @@ def load_records() -> list:
         "SELECT date, operator, version, device_number, device_name, "
         "information, data "
         "FROM base_table "
-        "WHERE date > '2024-03-14';"
-        # "LIMIT 1000;"
+        "WHERE date > '2024-03-14'"  # 19.02.25
+        "LIMIT 1000;"
     )
 
     id = 0

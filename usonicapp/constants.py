@@ -41,13 +41,9 @@ USERS = [
 TEST = {'name': '', 'img': 'img/.jpg'}
 
 DEVICE_MODELS = {
-    'Алена':
-    [
-        {'name': 'УЗТА-0,1/28-О', 'img': 'img/uzta-01-28-o.jpg'},
-        {'name': 'УЗТА-0,15/22-ОCy', 'img': 'img/uzta-015-22-osu.jpg'},
-    ],
     'Волна':
     [
+        {'name': 'УЗТА-0,2/22-ОМ', 'img': 'img/uzta-02-22-om.jpg'},
         {'name': 'УЗТА-0,4/22-ОМ (1)', 'img': 'img/uzta-04-22-om-1.jpg'},
         {'name': 'УЗТА-0,4/22-ОМ (2)', 'img': 'img/uzta-04-22-om-2.jpg'},
         {'name': 'УЗТА-0,4/22-ОМ (3)', 'img': 'img/uzta-04-22-om-3.jpg'},
