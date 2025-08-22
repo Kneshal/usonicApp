@@ -30,28 +30,32 @@ jobs:
         pip install "PyQt5==5.15.4"
         pip install "scipy==1.7.3"
         pip install "pandas==1.3.5"
-        pip install "pyinstaller==5.6.2"  # Стабильная версия
+        pip install "pyinstaller==5.6.2"
         pip install -r requirements.txt
 
     - name: Build with Windows 7 support
       working-directory: ./usonicapp
       run: |
+        # Правильный синтаксис для Windows CMD
         pyinstaller usonicapp.spec ^
-          --target-architecture ${{ matrix.arch }} ^
-          --compatible "win7" ^
           --hidden-import numpy.core._multiarray_umath ^
-          --hidden-import numpy.core._multiarray_tests ^
-          --add-binary "C:\Windows\System32\vcruntime140.dll;."  # Важная DLL
+          --hidden-import numpy.core._multiarray_tests
+
+    - name: Add vcruntime140.dll manually if needed
+      working-directory: ./usonicapp
+      run: |
+        # Копируем vcruntime140.dll из системы
+        copy "C:\Windows\System32\vcruntime140.dll" dist\ 2>nul || echo "vcruntime140.dll not found, continuing without it"
 
     - name: Test basic functionality
       working-directory: ./usonicapp/dist
       run: |
-        echo "Проверка наличия файлов..."
+        echo "Checking build files..."
         dir
         if exist usonicapp.exe (
-            echo "EXE файл создан успешно"
+            echo "EXE file created successfully"
         ) else (
-            echo "EXE файл не найден"
+            echo "EXE file not found"
             exit 1
         )
 
