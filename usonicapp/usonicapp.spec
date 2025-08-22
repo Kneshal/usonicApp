@@ -24,7 +24,18 @@ a = Analysis(
         ('settings.toml', '.'),
 
     ],
-    hiddenimports=['playhouse', 'playhouse.shortcuts', 'matplotlib', 'qbstyles', 'PyQt5.QtSerialPort'],
+    hiddenimports=[
+        'playhouse',
+        'playhouse.shortcuts',
+        'matplotlib',
+        'qbstyles',
+        'PyQt5.QtSerialPort',
+        'numpy',
+        'numpy.core._multiarray_umath',
+        'numpy.core._multiarray_tests',
+        'matplotlib',
+        'matplotlib.backends.backend_qt5agg'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
