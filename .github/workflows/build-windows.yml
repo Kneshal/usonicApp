@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Python 3.11 ${{ matrix.arch }}
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
@@ -27,34 +27,22 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: Build distribution
+    - name: Build with spec file
       working-directory: ./usonicapp
       run: pyinstaller usonicapp.spec
 
-    - name: List built files (for debugging)
+    - name: Simple directory listing
       working-directory: ./usonicapp
-      run: |
-        echo "Full distribution structure:"
-        dir dist\ /s
-        tree dist\ /f || echo "tree command not available"
+      run: dir dist
 
-    - name: Upload entire distribution
+    - name: Upload distribution
       uses: actions/upload-artifact@v4
       with:
-        name: usonicapp-${{ matrix.arch }}-dist
+        name: usonicapp-${{ matrix.arch }}
         path: usonicapp/dist/
         retention-days: 30
 
-    - name: Create zip archive
-      working-directory: ./usonicapp
+    - name: Show success message
       run: |
-        $version = "1.0.0"
-        $arch = "${{ matrix.arch }}"
-        Compress-Archive -Path "dist/*" -DestinationPath "usonicapp-$version-$arch.zip"
-
-    - name: Upload zip archive
-      uses: actions/upload-artifact@v4
-      with:
-        name: usonicapp-${{ matrix.arch }}-zip
-        path: usonicapp/usonicapp-*-${{ matrix.arch }}.zip
-        retention-days: 30
+        echo "Build completed successfully for ${{ matrix.arch }}"
+        echo "Check Artifacts section to download the distribution"
