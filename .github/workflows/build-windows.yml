@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows Distribution
 
 on:
   push:
@@ -27,13 +27,34 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: Build EXE
+    - name: Build distribution
       working-directory: ./usonicapp
       run: pyinstaller usonicapp.spec
 
-    - name: Upload artifact
+    - name: List built files (for debugging)
+      working-directory: ./usonicapp
+      run: |
+        echo "Full distribution structure:"
+        dir dist\ /s
+        tree dist\ /f || echo "tree command not available"
+
+    - name: Upload entire distribution
       uses: actions/upload-artifact@v4
       with:
-        name: usonicapp-${{ matrix.arch }}
+        name: usonicapp-${{ matrix.arch }}-dist
         path: usonicapp/dist/
+        retention-days: 30
+
+    - name: Create zip archive
+      working-directory: ./usonicapp
+      run: |
+        $version = "1.0.0"
+        $arch = "${{ matrix.arch }}"
+        Compress-Archive -Path "dist/*" -DestinationPath "usonicapp-$version-$arch.zip"
+
+    - name: Upload zip archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: usonicapp-${{ matrix.arch }}-zip
+        path: usonicapp/usonicapp-*-${{ matrix.arch }}.zip
         retention-days: 30
