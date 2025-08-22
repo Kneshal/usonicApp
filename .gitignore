@@ -10,7 +10,7 @@ temp.py
 usonicApp.db
 install_project.ifp
 usonicapp_setup_x64.exe
-
+myenv32
 # C extensions
 *.so
 
