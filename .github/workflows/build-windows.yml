@@ -35,7 +35,7 @@ jobs:
 
     - name: Build with Windows 7 support
       working-directory: ./usonicapp
-      run: pyinstaller usonicapp.spec --hidden-import numpy.core._multiarray_umath --hidden-import numpy.core._multiarray_tests
+      run: pyinstaller usonicapp.spec
 
     - name: Add vcruntime140.dll manually if needed
       working-directory: ./usonicapp
