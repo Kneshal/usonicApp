@@ -46,14 +46,14 @@ jobs:
     - name: Test basic functionality
       working-directory: ./usonicapp/dist
       run: |
-        echo "Checking build files..."
-        dir
-        if exist usonicapp.exe (
-            echo "EXE file created successfully"
-        ) else (
-            echo "EXE file not found"
+        Write-Host "Checking build files..."
+        Get-ChildItem
+        if (Test-Path "usonicapp.exe") {
+            Write-Host "EXE file created successfully"
+        } else {
+            Write-Host "EXE file not found"
             exit 1
-        )
+        }
 
     - name: Upload Windows 7 compatible build
       uses: actions/upload-artifact@v4
