@@ -297,7 +297,7 @@ class SerialPortManager(QObject):
     @staticmethod
     def calc_data(raw_values: RawMeasuredValue, calibration: Decimal, f: int) -> MeasuredValue:  # noqa
         """Расчет параметров на основе данных от COM-порта."""
-        z = (calibration * pow(10, (((raw_values.v_db_u) - (raw_values.v_db_i))/695)))  # noqa
+        z = (calibration * pow(10, (((raw_values.v_db_u) - (raw_values.v_db_i))/600)))  # noqa
         ph = (raw_values.v_ph_i/10 - raw_values.v_ph_u/10)
         r = z * Decimal(math.cos(math.radians(ph)))
         x = z * Decimal(math.sin(math.radians(ph)))

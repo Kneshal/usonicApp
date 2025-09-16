@@ -37,12 +37,6 @@ jobs:
       working-directory: ./usonicapp
       run: pyinstaller usonicapp.spec
 
-    - name: Add vcruntime140.dll manually if needed
-      working-directory: ./usonicapp
-      run: |
-        # Копируем vcruntime140.dll из системы
-        copy "C:\Windows\System32\vcruntime140.dll" dist\ 2>nul || echo "vcruntime140.dll not found, continuing without it"
-
     - name: Upload Windows 7 compatible build
       uses: actions/upload-artifact@v4
       with:
